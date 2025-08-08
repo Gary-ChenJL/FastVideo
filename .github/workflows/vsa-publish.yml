@@ -54,6 +54,11 @@ jobs:
           # manylinux docker image, but I haven't figured out how to install CUDA on manylinux.
           os: [ubuntu-22.04]
           python-version: ['3.10', '3.11', '3.12', '3.13']
+          # Placeholders, populated by include
+          torch-version: [ ]
+          cuda-version: [ ]
+          torch-cuda-short: [ ]
+
           # For version reference https://pytorch.org/get-started/previous-versions/
           include:
             - torch-version: '2.5.1'
