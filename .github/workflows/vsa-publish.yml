@@ -54,8 +54,23 @@ jobs:
           # manylinux docker image, but I haven't figured out how to install CUDA on manylinux.
           os: [ubuntu-22.04]
           python-version: ['3.10', '3.11', '3.12', '3.13']
-          torch-version: ['2.5.1', '2.6.0', '2.7.1']
-          cuda-version: ['12.4.1', '12.5.1', '12.6.3', '12.8.0']
+          # For version reference https://pytorch.org/get-started/previous-versions/
+          include:
+            - torch-version: '2.5.1'
+              cuda-version: '12.4.1'
+              torch-cuda-short: 'cu124'
+
+            - torch-version: '2.6.0'
+              cuda-version: '12.4.1'
+              torch-cuda-short: 'cu124'
+
+            - torch-version: '2.6.0'
+              cuda-version: '12.6.3'
+              torch-cuda-short: 'cu126'
+
+            - torch-version: '2.7.1'
+              cuda-version: '12.8.0'
+              torch-cuda-short: 'cu128'
 
     steps:
       - name: Free up disk space
@@ -126,8 +141,7 @@ jobs:
           # We want to figure out the CUDA version to download pytorch
           # e.g. we can have system CUDA version being 11.7 but if torch==1.12 then we need to download the wheel from cu116
           # see https://github.com/pytorch/pytorch/blob/main/RELEASE.md#release-compatibility-matrix
-          export TORCH_CUDA_VERSION=124
-          pip install --no-cache-dir torch==${{ matrix.torch-version }} --index-url https://download.pytorch.org/whl/cu${TORCH_CUDA_VERSION}
+          pip install --no-cache-dir torch==${{ matrix.torch-version }} --index-url https://download.pytorch.org/whl/${{matrix.torch-cuda-short}}
           nvcc --version
           python --version
           python -c "import torch; print('PyTorch:', torch.__version__)"
