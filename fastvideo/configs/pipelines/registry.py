@@ -34,6 +34,7 @@ PIPE_NAME_TO_CONFIG: dict[str, type[PipelineConfig]] = {
     "Wan-AI/Wan2.2-TI2V-5B-Diffusers": WanT2V720PConfig,
     "Wan-AI/Wan2.2-T2V-A14B-Diffusers": WanT2V480PConfig,
     "Wan-AI/Wan2.2-I2V-A14B-Diffusers": WanI2V480PConfig,
+    "alibaba-pai/Wan2.2-Fun-A14B-Control": WanT2V480PConfig,
     # Add other specific weight variants
 }
 

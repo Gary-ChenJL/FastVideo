@@ -24,6 +24,8 @@ from typing import Any, TypeVar, cast
 import cloudpickle
 import filelock
 import torch
+import torchvision.io as io
+import torchvision.transforms.v2 as transforms
 import yaml
 from diffusers.loaders.lora_base import (
     _best_guess_weight_name)  # watch out for potetential removal from diffusers
@@ -812,3 +814,31 @@ def set_random_seed(seed: int) -> None:
 @lru_cache(maxsize=1)
 def is_vsa_available() -> bool:
     return importlib.util.find_spec("vsa") is not None
+
+def get_video_to_video_latent_torch(input_video_path, video_length, sample_size, fps=None):
+    if input_video_path is not None:
+        # Read video using torchvision
+        video, _, info = io.read_video(input_video_path, pts_unit='sec')
+
+        # Handle FPS sampling
+        if fps is not None:
+            original_fps = info['video_fps']
+            frame_skip = max(1, int(original_fps // fps))
+            video = video[::frame_skip]  # Sample frames
+
+        # Limit to video_length
+        video = video[:video_length]
+
+        # Create transform pipeline
+        transform = transforms.Compose([
+            transforms.ToPILImage(),  # Convert to PIL for resize
+            transforms.Resize((sample_size[0], sample_size[1])),
+            transforms.ToTensor(),  # Convert back to tensor and normalize
+        ])
+
+        # Apply transforms to each frame and stack
+        processed_frames = torch.stack([transform(frame) for frame in video])
+        # Result: [T, C, H, W] -> permute to [C, T, H, W] -> unsqueeze batch dim
+        input_video = processed_frames.permute(1, 0, 2, 3).unsqueeze(0)
+
+    return input_video

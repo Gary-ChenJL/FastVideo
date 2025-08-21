@@ -775,6 +775,21 @@ class DmdDenoisingStage(DenoisingStage):
                             # fastvideo_args=fastvideo_args
                     ):
                         # Run transformer
+                        # Prepare optional control inputs if provided in batch.extra
+                        control_kwargs = {}
+                        try:
+                            extra = getattr(batch, 'extra', {}) if hasattr(batch, 'extra') else {}
+                            control_latents = extra.get('control_latents', None)
+                            control_camera_latents = extra.get('control_camera_latents', None)
+                            if control_latents is not None:
+                                control_kwargs['y'] = (torch.cat([control_latents] * 2)
+                                                       if batch.do_classifier_free_guidance else control_latents)
+                            if control_camera_latents is not None:
+                                control_kwargs['y_camera'] = (torch.cat([control_camera_latents] * 2)
+                                                              if batch.do_classifier_free_guidance else control_camera_latents)
+                        except Exception:
+                            control_kwargs = {}
+
                         pred_noise = self.transformer(
                             latent_model_input.permute(0, 2, 1, 3, 4),
                             prompt_embeds,
@@ -782,6 +797,7 @@ class DmdDenoisingStage(DenoisingStage):
                             guidance=guidance_expand,
                             **image_kwargs,
                             **pos_cond_kwargs,
+                            **control_kwargs,
                         ).permute(0, 2, 1, 3, 4)
 
                     from fastvideo.training.training_utils import (
