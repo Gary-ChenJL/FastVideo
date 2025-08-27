@@ -175,6 +175,17 @@ class DenoisingStage(PipelineStage):
             },
         )
 
+        video_kwargs = self.prepare_extra_func_kwargs(
+            self.transformer.forward,
+            {
+                "y": (torch.cat([batch.video_latent] * 2)
+                                       if batch.do_classifier_free_guidance else batch.video_latent),
+                # TODO
+                "y_camera": None
+            }
+        )
+
+
         # Prepare STA parameters
         if st_attn_available and self.attn_backend == SlidingTileAttentionBackend:
             self.prepare_sta_param(batch, fastvideo_args)
@@ -310,6 +321,7 @@ class DenoisingStage(PipelineStage):
                                 guidance=guidance_expand,
                                 **image_kwargs,
                                 **neg_cond_kwargs,
+                                **video_kwargs,
                             )
                         noise_pred_text = noise_pred
                         noise_pred = noise_pred_uncond + current_guidance_scale * (
@@ -775,21 +787,6 @@ class DmdDenoisingStage(DenoisingStage):
                             # fastvideo_args=fastvideo_args
                     ):
                         # Run transformer
-                        # Prepare optional control inputs if provided in batch.extra
-                        control_kwargs = {}
-                        try:
-                            extra = getattr(batch, 'extra', {}) if hasattr(batch, 'extra') else {}
-                            control_latents = extra.get('control_latents', None)
-                            control_camera_latents = extra.get('control_camera_latents', None)
-                            if control_latents is not None:
-                                control_kwargs['y'] = (torch.cat([control_latents] * 2)
-                                                       if batch.do_classifier_free_guidance else control_latents)
-                            if control_camera_latents is not None:
-                                control_kwargs['y_camera'] = (torch.cat([control_camera_latents] * 2)
-                                                              if batch.do_classifier_free_guidance else control_camera_latents)
-                        except Exception:
-                            control_kwargs = {}
-
                         pred_noise = self.transformer(
                             latent_model_input.permute(0, 2, 1, 3, 4),
                             prompt_embeds,

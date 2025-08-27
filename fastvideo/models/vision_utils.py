@@ -3,6 +3,7 @@
 import os
 import tempfile
 from collections.abc import Callable
+from typing import Any
 from urllib.parse import unquote, urlparse
 
 import imageio
@@ -136,7 +137,7 @@ def load_video(
     video: str,
     convert_method: Callable[[list[PIL.Image.Image]], list[PIL.Image.Image]]
     | None = None,
-) -> list[PIL.Image.Image]:
+) -> tuple[list[Any], float | Any]:
     """
     Loads `video` to a list of PIL Image.
     Args:
@@ -179,8 +180,8 @@ def load_video(
         video = video_path
 
     pil_images = []
-    if video.endswith(".gif"):
-        gif = PIL.Image.open(video)
+    if video_path.endswith(".gif"):
+        gif = PIL.Image.open(video_path)
         try:
             while True:
                 pil_images.append(gif.copy())
@@ -188,6 +189,14 @@ def load_video(
         except EOFError:
             pass
 
+        # GIF FPS estimation
+        try:
+            if hasattr(gif, 'info') and 'duration' in gif.info:
+                duration_ms = gif.info['duration']
+                if duration_ms > 0:
+                    original_fps = 1000.0 / duration_ms
+        except:
+            pass
     else:
         try:
             imageio.plugins.ffmpeg.get_exe()
@@ -196,18 +205,20 @@ def load_video(
                 "`Unable to find an ffmpeg installation on your machine. Please install via `pip install imageio-ffmpeg"
             ) from None
 
-        with imageio.get_reader(video) as reader:
-            # Read all frames
+        with imageio.get_reader(video_path) as reader:
+            try:
+                original_fps = reader.get_meta_data().get('fps', None)
+            except:
+                # Fallback: try to get from format-specific metadata
+                try:
+                    original_fps = reader.get_meta_data().get('source_size', {}).get('fps', None)
+                except:
+                    pass
+
             for frame in reader:
                 pil_images.append(PIL.Image.fromarray(frame))
 
-    if was_tempfile_created:
-        os.remove(video_path)
-
-    if convert_method is not None:
-        pil_images = convert_method(pil_images)
-
-    return pil_images
+    return pil_images, original_fps
 
 
 def get_default_height_width(

@@ -9,7 +9,7 @@ def main():
     # If a local path is provided, FastVideo will make a best effort
     # attempt to identify the optimal arguments.
     generator = VideoGenerator.from_pretrained(
-        "Wan-AI/Wan2.2-I2V-A14B-Diffusers",
+        "alibaba-pai/Wan2.2-Fun-A14B-Control",
         # FastVideo will automatically handle distributed setup
         num_gpus=1,
         use_fsdp_inference=True,
@@ -21,8 +21,9 @@ def main():
         # image_encoder_cpu_offload=False,
     )
 
-    prompt = "Summer beach vacation style, a white cat wearing sunglasses sits on a surfboard. The fluffy-furred feline gazes directly at the camera with a relaxed expression. Blurred beach scenery forms the background featuring crystal-clear waters, distant green hills, and a blue sky dotted with white clouds. The cat assumes a naturally relaxed posture, as if savoring the sea breeze and warm sunlight. A close-up shot highlights the feline's intricate details and the refreshing atmosphere of the seaside."
-    image_path = "https://huggingface.co/datasets/YiYiXu/testing-images/resolve/main/wan_i2v_input.JPG"
+    prompt                  = "A young woman with beautiful, clear eyes and blonde hair stands in the forest, wearing a white dress and a crown. Her expression is serene, reminiscent of a movie star, with fair and youthful skin. Her brown long hair flows in the wind. The video quality is very high, with a clear view. High quality, masterpiece, best quality, high resolution, ultra-fine, fantastical."
+    negative_prompt         = "Twisted body, limb deformities, text captions, comic, static, ugly, error, messy code."
+    image_path = "https://pai-aigc-photog.oss-cn-hangzhou.aliyuncs.com/wan_fun/asset_Wan2_2/v1.0/pose.mp4"
     control_video_path = "https://huggingface.co/datasets/YiYiXu/testing-videos/resolve/main/wan_i2v_input.mp4"
 
     video = generator.generate_video(prompt, image_path=image_path, control_video=control_video_path, output_path=OUTPUT_PATH, save_video=True, height=832, width=480, num_frames=81)

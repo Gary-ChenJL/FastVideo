@@ -204,8 +204,6 @@ class VideoGenerator:
                 fastvideo_args.model_path)
 
         kwargs["prompt"] = prompt
-        control_latents = kwargs.pop("control_video", None)
-        control_camera_latents = kwargs.pop("control_camera_video", None)
         sampling_param.update(kwargs)
 
         # Process negative prompt
@@ -291,19 +289,11 @@ class VideoGenerator:
         logger.info(debug_str)
 
         # Prepare batch
-        # Prepare extra dict for optional control inputs
-        extra_dict = {}
-        if control_latents is not None:
-            extra_dict["control_latents"] = control_latents
-        if control_camera_latents is not None:
-            extra_dict["control_camera_latents"] = control_camera_latents
-
         batch = ForwardBatch(
             **shallow_asdict(sampling_param),
             eta=0.0,
             n_tokens=n_tokens,
             VSA_sparsity=fastvideo_args.VSA_sparsity,
-            extra=extra_dict,
         )
 
         # Use prompt[:100] for video name

@@ -17,6 +17,7 @@ from fastvideo.configs.sample.wan import (
     WanI2V_14B_720P_SamplingParam,
     WanT2V_1_3B_SamplingParam,
     WanT2V_14B_SamplingParam,
+    Wan2_2_Fun_A14B_ControlParam,
 )
 # isort: on
 from fastvideo.logger import init_logger
@@ -38,6 +39,7 @@ SAMPLING_PARAM_REGISTRY: dict[str, Any] = {
     "FastVideo/FastWan2.2-TI2V-5B-Diffusers": Wan2_2_TI2V_5B_SamplingParam,
     "Wan-AI/Wan2.2-T2V-A14B-Diffusers": Wan2_2_T2V_A14B_SamplingParam,
     "Wan-AI/Wan2.2-I2V-A14B-Diffusers": Wan2_2_I2V_A14B_SamplingParam,
+    "alibaba-pai/Wan2.2-Fun-A14B-Control": Wan2_2_Fun_A14B_ControlParam,
     # Add other specific weight variants
 }
 

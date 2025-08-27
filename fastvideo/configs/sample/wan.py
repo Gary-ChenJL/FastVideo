@@ -141,3 +141,16 @@ class Wan2_2_I2V_A14B_SamplingParam(Wan2_2_Base_SamplingParam):
     guidance_scale_2: float = 3.5
     num_inference_steps: int = 40
     fps: int = 16
+
+@dataclass
+class Wan2_2_Fun_A14B_ControlParam(SamplingParam):
+    fps: int = 16
+    num_frames: int = 81
+    height: int = 480
+    width: int = 832
+    guidance_scale: float = 6.0
+    teacache_params: WanTeaCacheParams = field(
+        default_factory= lambda : WanTeaCacheParams(
+            teacache_thresh = 0.1,
+            )
+    )

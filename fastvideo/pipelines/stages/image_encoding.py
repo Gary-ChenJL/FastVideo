@@ -138,10 +138,9 @@ class ImageVAEEncodingStage(PipelineStage):
             )
 
         # Control video processing
-        control_video = getattr(batch, 'control_video', None)
-        if control_video is not None:
+        if batch.video_latent is not None:
             batch = self._process_control_video(
-                batch, fastvideo_args, control_video, latent_height, latent_width
+                batch, fastvideo_args, batch.video_latent, latent_height, latent_width
             )
 
         # Offload models if needed
@@ -289,8 +288,8 @@ class ImageVAEEncodingStage(PipelineStage):
         mask_lat_size = self._create_control_mask(
             batch.num_frames, latent_height, latent_width, latent_condition.device
         )
+        batch.video_latent = torch.concat([mask_lat_size, latent_condition], dim=1)
 
-        batch.control_latents = torch.concat([mask_lat_size, latent_condition], dim=1)
         return batch
 
     def _prepare_control_video_tensor(
