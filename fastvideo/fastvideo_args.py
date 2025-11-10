@@ -759,6 +759,51 @@ class TrainingArgs(FastVideoArgs):
     last_step_only: bool = False  # Only use the last timestep for training
     context_noise: int = 0  # Context noise level for cache updates
 
+    # RL/GRPO-specific parameters
+    rl_mode: bool = False  # Enable RL training mode
+    rl_algorithm: str = "grpo"  # RL algorithm to use: "grpo", "ppo", "dpo"
+
+    # Trajectory collection (Flow-GRPO-Fast)
+    rl_num_rollouts: int = 4  # Number of rollouts to collect per training step
+    rl_rollout_steps: str = "20,30"  # Random intermediate steps for sampling (comma-separated)
+    rl_noise_injection_min: int = 10  # Minimum timestep for noise injection
+    rl_noise_injection_max: int = 40  # Maximum timestep for noise injection
+    rl_use_sde_sampling: bool = True  # Use SDE sampling (Flow-GRPO-Fast)
+    rl_num_denoising_steps: int = 2  # Number of denoising steps per trajectory (1-2 for fast)
+
+    # Advantage estimation
+    rl_gamma: float = 0.99  # Discount factor for returns
+    rl_lambda: float = 0.95  # GAE lambda parameter
+    rl_use_gae: bool = True  # Use Generalized Advantage Estimation
+    rl_normalize_advantages: bool = True  # Normalize advantages before policy update
+
+    # Policy optimization (GRPO/PPO)
+    rl_policy_clip_range: float = 0.2  # PPO-style clipping range for policy ratio
+    rl_value_clip_range: float = 0.2  # Value function clipping range
+    rl_num_policy_epochs: int = 1  # Number of policy update epochs (GRPO typically uses 1)
+    rl_num_value_epochs: int = 1  # Number of value function update epochs
+    rl_target_kl: float = 0.01  # Target KL divergence for early stopping
+    rl_entropy_coef: float = 0.0  # Entropy coefficient for exploration
+    rl_value_loss_coef: float = 0.5  # Value loss coefficient
+
+    # GRPO-Guard (safety mechanisms)
+    rl_use_grpo_guard: bool = True  # Enable GRPO-Guard safety mechanisms
+    rl_ratio_norm_correction: bool = True  # RatioNorm: correct importance ratio bias
+    rl_gradient_reweighting: bool = True  # Reweight gradients across denoising steps
+    rl_max_importance_ratio: float = 10.0  # Clip importance ratios above this value
+
+    # Reward models
+    reward_model_paths: str = ""  # Comma-separated paths to reward models
+    reward_weights: str = ""  # Comma-separated weights for reward aggregation
+    reward_model_types: str = ""  # Comma-separated reward types (pickscore,geneval,ocr,etc)
+    value_model_path: str = ""  # Path to value model (can be empty to train from scratch)
+    value_model_share_backbone: bool = False  # Share transformer backbone between policy and value
+
+    # Training schedule
+    rl_policy_value_update_ratio: float = 1.0  # Ratio of policy:value updates (like distillation)
+    rl_warmup_steps: int = 1000  # Collect SFT-style data before starting RL
+    rl_collect_on_policy: bool = True  # Collect fresh rollouts each step (on-policy)
+
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> "TrainingArgs":
         provided_args = clean_cli_args(args)
