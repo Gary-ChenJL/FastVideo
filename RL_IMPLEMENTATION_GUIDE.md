@@ -1,8 +1,23 @@
 # FastVideo RL/GRPO Pipeline Implementation Guide
 
-**Created**: November 10, 2025  
-**Purpose**: Complete guide for implementing RL/GRPO pipeline in FastVideo  
-**Status**: Ready for implementation
+**Created**: November 10, 2025
+**Updated**: November 11, 2025
+**Purpose**: Complete guide for implementing RL/GRPO pipeline in FastVideo
+**Status**: Phase 1 Complete
+**Scope**: VIDEO GENERATION ONLY (not image models)
+
+---
+
+## 🎯 IMPORTANT: VIDEO-ONLY SCOPE
+
+This RL/GRPO implementation is **exclusively for VIDEO generation models**.
+
+- ✅ **Supported**: FastVideo WAN, video diffusion models, T2V, I2V
+- ❌ **NOT Supported**: Stable Diffusion 3.5, FLUX.1, any image-only models
+- ✅ **Reward Models**: Video-specific (temporal coherence, motion quality, video-text alignment)
+- ❌ **NOT Using**: PickScore, ImageReward, GenEval (image-only rewards)
+
+See `RL_SCOPE.md` for complete scope documentation.
 
 ---
 
