@@ -1,13 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 Utility functions for RL/GRPO training.
-
-This module provides core RL algorithms:
-1. Generalized Advantage Estimation (GAE)
-2. GRPO policy loss with importance sampling
-3. Value function losses
-4. Trajectory sampling utilities
-5. GRPO-Guard safety mechanisms
 """
 
 from typing import Any
@@ -156,7 +149,7 @@ def compute_grpo_policy_loss(
         clip_fraction = ((ratio < 1.0 - clip_range) | (ratio > 1.0 + clip_range)).float().mean()
 
         # KL divergence (approximate)
-        kl_div = (log_ratio).mean()
+        kl_div = log_ratio.mean()
 
         # Importance ratio stats
         importance_ratio_mean = ratio.mean()

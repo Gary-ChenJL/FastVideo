@@ -1,16 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """
-RL/GRPO training pipeline for FastVideo.
+RL training pipeline for FastVideo.
 
-This module implements reinforcement learning training using GRPO (Group Relative Policy Optimization)
+This module currently implements reinforcement learning training using GRPO (Group Relative Policy Optimization)
 and related algorithms. It extends the base TrainingPipeline with RL-specific functionality:
-
-1. Trajectory collection (Flow-GRPO-Fast: 1-2 step sampling)
-2. Reward computation using multi-reward aggregation
-3. Advantage estimation using GAE
-4. GRPO policy optimization with importance sampling
-5. Value function training
-6. GRPO-Guard safety mechanisms
 
 Reference:
     Flow-GRPO: https://github.com/yifan123/flow_grpo
@@ -72,12 +65,12 @@ class RLPipeline(TrainingPipeline):
         loaded_modules: dict[str, nn.Module] | None = None
     ) -> None:
         """Initialize RL pipeline."""
-        if not fastvideo_args.rl_mode:
+        if not fastvideo_args.rl_args.rl_mode:
             logger.warning(
                 "rl_mode is False, but RLPipeline is being initialized. "
                 "Setting rl_mode=True."
             )
-            fastvideo_args.rl_mode = True
+            fastvideo_args.rl_args.rl_mode = True
 
         super().__init__(model_path, fastvideo_args, required_config_modules, loaded_modules)
 
@@ -89,7 +82,7 @@ class RLPipeline(TrainingPipeline):
 
         logger.info(
             "Initialized RLPipeline with algorithm: %s",
-            fastvideo_args.rl_algorithm
+            fastvideo_args.rl_args.rl_algorithm
         )
 
     def initialize_training_pipeline(self, training_args: TrainingArgs):
@@ -101,15 +94,15 @@ class RLPipeline(TrainingPipeline):
 
         # Initialize reward models
         self.reward_models = create_reward_models(
-            reward_model_paths=training_args.reward_model_paths,
-            reward_weights=training_args.reward_weights,
-            reward_model_types=training_args.reward_model_types,
+            reward_model_paths=training_args.rl_args.reward_model_paths,
+            reward_weights=training_args.rl_args.reward_weights,
+            reward_model_types=training_args.rl_args.reward_model_types,
             device=str(self.device)
         )
         logger.info("Loaded reward models: %s", self.reward_models)
 
         # Initialize value model
-        if training_args.value_model_share_backbone:
+        if training_args.rl_args.value_model_share_backbone:
             # Share transformer backbone with policy
             logger.info("Value model will share backbone with policy transformer")
             self.value_model = ValueModel(
@@ -127,7 +120,7 @@ class RLPipeline(TrainingPipeline):
             )
 
         # Create optimizer and scheduler for value model
-        if not training_args.value_model_share_backbone:
+        if not training_args.rl_args.value_model_share_backbone:
             value_params = list(self.value_model.parameters())
             self.value_optimizer = torch.optim.AdamW(
                 value_params,
@@ -180,21 +173,21 @@ class RLPipeline(TrainingPipeline):
         logger.debug("Collecting trajectories with Flow-GRPO-Fast")
 
         # Parse rollout steps from config
-        rollout_steps_str = self.training_args.rl_rollout_steps
+        rollout_steps_str = self.training_args.rl_args.rl_rollout_steps
         rollout_steps = [int(s.strip()) for s in rollout_steps_str.split(",")]
 
         # Sample random timesteps for noise injection
         batch_size = training_batch.latents.shape[0]
         timesteps = sample_random_timesteps(
             batch_size=batch_size,
-            min_timestep=self.training_args.rl_noise_injection_min,
-            max_timestep=self.training_args.rl_noise_injection_max,
+            min_timestep=self.training_args.rl_args.rl_noise_injection_min,
+            max_timestep=self.training_args.rl_args.rl_noise_injection_max,
             device=training_batch.latents.device,
             generator=self.noise_random_generator
         )
 
         # TODO: Implement actual trajectory collection
-        # For now, use existing noisy inputs and compute log probs
+        # use existing noisy inputs and compute log probs for now
         training_batch.timesteps = timesteps
 
         # Store old log probs for importance ratio
@@ -286,12 +279,12 @@ class RLPipeline(TrainingPipeline):
             rewards=rewards,
             values=values,
             next_values=next_values,
-            gamma=self.training_args.rl_gamma,
-            lambda_=self.training_args.rl_lambda
+            gamma=self.training_args.rl_args.rl_gamma,
+            lambda_=self.training_args.rl_args.rl_lambda
         )
 
         # Normalize advantages
-        if self.training_args.rl_normalize_advantages:
+        if self.training_args.rl_args.rl_normalize_advantages:
             advantages = normalize_advantages(advantages)
 
         training_batch.advantages = advantages
@@ -324,7 +317,7 @@ class RLPipeline(TrainingPipeline):
             Updated training_batch with loss and metrics
         """
         # Check if we're in warmup phase (do SFT instead of RL)
-        if training_batch.current_timestep < self.training_args.rl_warmup_steps:
+        if training_batch.current_timestep < self.training_args.rl_args.rl_warmup_steps:
             logger.debug("In warmup phase, using standard SFT training")
             return super().train_one_step(training_batch)
 
@@ -356,9 +349,9 @@ class RLPipeline(TrainingPipeline):
                     log_probs=training_batch.log_probs,
                     old_log_probs=training_batch.old_log_probs,
                     advantages=training_batch.advantages,
-                    clip_range=self.training_args.rl_policy_clip_range,
-                    use_ratio_norm=self.training_args.rl_ratio_norm_correction,
-                    max_importance_ratio=self.training_args.rl_max_importance_ratio
+                    clip_range=self.training_args.rl_args.rl_policy_clip_range,
+                    use_ratio_norm=self.training_args.rl_args.rl_ratio_norm_correction,
+                    max_importance_ratio=self.training_args.rl_args.rl_max_importance_ratio
                 )
 
                 training_batch.policy_loss = policy_info["policy_loss"]
@@ -375,21 +368,21 @@ class RLPipeline(TrainingPipeline):
                     values=training_batch.values,
                     returns=training_batch.returns,
                     old_values=training_batch.old_values,
-                    clip_range=self.training_args.rl_value_clip_range,
+                    clip_range=self.training_args.rl_args.rl_value_clip_range,
                     use_clipping=True
                 )
 
                 training_batch.value_loss = value_info["value_loss"]
 
                 # Backward pass for value
-                value_loss_scaled = value_loss * self.training_args.rl_value_loss_coef
+                value_loss_scaled = value_loss * self.training_args.rl_args.rl_value_loss_coef
                 (value_loss_scaled / self.training_args.gradient_accumulation_steps).backward()
 
             # 7. Entropy bonus (optional)
-            if self.training_args.rl_entropy_coef > 0.0 and training_batch.log_probs is not None:
+            if self.training_args.rl_args.rl_entropy_coef > 0.0 and training_batch.log_probs is not None:
                 entropy = compute_policy_entropy(training_batch.log_probs)
                 training_batch.entropy = entropy.item()
-                entropy_loss = -self.training_args.rl_entropy_coef * entropy
+                entropy_loss = -self.training_args.rl_args.rl_entropy_coef * entropy
                 (entropy_loss / self.training_args.gradient_accumulation_steps).backward()
 
             # Accumulate total loss
@@ -409,7 +402,7 @@ class RLPipeline(TrainingPipeline):
                 self.value_scheduler.step()
 
         # Check for early stopping based on KL divergence
-        if check_early_stopping(training_batch.kl_divergence, self.training_args.rl_target_kl):
+        if check_early_stopping(training_batch.kl_divergence, self.training_args.rl_args.rl_target_kl):
             logger.warning(
                 "Early stopping at step %d due to high KL divergence",
                 training_batch.current_timestep
@@ -424,7 +417,7 @@ class RLPipeline(TrainingPipeline):
             param.requires_grad = True
 
         # Value model is trainable if not sharing backbone
-        if self.value_model is not None and not self.training_args.value_model_share_backbone:
+        if self.value_model is not None and not self.training_args.rl_args.value_model_share_backbone:
             for param in self.value_model.parameters():
                 param.requires_grad = True
 

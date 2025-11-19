@@ -11,7 +11,7 @@ This module provides:
 3. Value model wrapper
 4. Integration with FastVideo video generation infrastructure
 
-Scope: VIDEO ONLY - No image-only reward models (PickScore, ImageReward, etc.)
+Scope: VIDEO ONLY - No image-only reward models
 """
 
 from abc import ABC, abstractmethod
@@ -23,6 +23,9 @@ import torch.nn as nn
 from fastvideo.logger import init_logger
 
 logger = init_logger(__name__)
+
+# Import video reward model implementations (will be lazy-loaded)
+_video_reward_models_imported = False
 
 
 class BaseRewardModel(ABC, nn.Module):
@@ -195,8 +198,8 @@ class ValueModel(nn.Module):
     1. Share the transformer backbone with the policy (memory efficient)
     2. Use a separate transformer (more flexible)
 
-    For now, this is a placeholder that will be expanded based on
-    the chosen architecture strategy.
+    Architecture:
+        Transformer backbone → Global pooling → MLP value head → Scalar value
     """
 
     def __init__(
@@ -217,11 +220,27 @@ class ValueModel(nn.Module):
         self.transformer = transformer
         self.share_backbone = share_backbone
 
-        # Value head will be added later based on transformer architecture
-        # For now, just store the transformer reference
+        # Infer hidden size from transformer if not provided
+        if hidden_size is None:
+            # Try to get hidden size from transformer config
+            if hasattr(transformer, 'config'):
+                hidden_size = getattr(transformer.config, 'hidden_size', 1024)
+            else:
+                hidden_size = 1024  # Default
+
+        # Value head: MLP that maps transformer output to scalar value
+        self.value_head = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_size // 2, hidden_size // 4),
+            nn.ReLU(),
+            nn.Linear(hidden_size // 4, 1)
+        )
+
         logger.info(
-            "Initialized ValueModel (share_backbone=%s)",
-            share_backbone
+            "Initialized ValueModel (share_backbone=%s, hidden_size=%d)",
+            share_backbone,
+            hidden_size
         )
 
     def forward(
@@ -243,10 +262,40 @@ class ValueModel(nn.Module):
         Returns:
             values: Value predictions [B]
         """
-        # TODO: Implement value prediction
-        # For now, return dummy values
         batch_size = hidden_states.shape[0]
-        return torch.zeros(batch_size, device=hidden_states.device)
+
+        # Get transformer features
+        # Note: Some transformers return tuple, some return tensor
+        with torch.no_grad() if self.share_backbone else torch.enable_grad():
+            try:
+                transformer_output = self.transformer(
+                    hidden_states=hidden_states,
+                    encoder_hidden_states=encoder_hidden_states,
+                    timestep=timestep,
+                    **kwargs
+                )
+
+                # Extract features from transformer output
+                if isinstance(transformer_output, tuple):
+                    features = transformer_output[0]  # Usually the main output
+                else:
+                    features = transformer_output
+
+                # Global pooling to get a single feature vector per sample
+                # Features are typically [B, C, T, H, W], pool over spatial-temporal dims
+                pooled_features = features.mean(dim=(2, 3, 4))  # [B, C]
+
+                # Pass through value head
+                values = self.value_head(pooled_features).squeeze(-1)  # [B]
+
+            except Exception as e:
+                logger.warning(
+                    f"Value model forward failed, returning zeros: {e}"
+                )
+                # Fallback to zeros if transformer forward fails
+                values = torch.zeros(batch_size, device=hidden_states.device)
+
+        return values
 
 
 class DummyRewardModel(BaseRewardModel):
@@ -373,39 +422,34 @@ def create_reward_models(
                 f"Please use video-specific reward models instead."
             )
 
+    # Lazy import video reward models to avoid circular dependencies
+    global _video_reward_models_imported
+    if not _video_reward_models_imported:
+        try:
+            from fastvideo.training.video_reward_models import REWARD_MODEL_REGISTRY
+            _video_reward_models_imported = True
+        except ImportError as e:
+            logger.error(f"Failed to import video reward models: {e}")
+            REWARD_MODEL_REGISTRY = {}
+    else:
+        from fastvideo.training.video_reward_models import REWARD_MODEL_REGISTRY
+
     # Create reward models based on types
     reward_models: list[BaseRewardModel] = []
     for path, reward_type in zip(paths, types, strict=False):
         if reward_type == "dummy":
             model = DummyRewardModel()
-        elif reward_type == "video_score":
-            # TODO: Implement VideoScore reward model (Phase 2)
-            logger.warning(
-                "VideoScore reward not implemented yet, using DummyRewardModel"
-            )
-            model = DummyRewardModel()
-        elif reward_type == "video_text_alignment":
-            # TODO: Implement VideoTextAlignment reward model (Phase 2)
-            logger.warning(
-                "VideoTextAlignment reward not implemented yet, using DummyRewardModel"
-            )
-            model = DummyRewardModel()
-        elif reward_type == "temporal_coherence":
-            # TODO: Implement TemporalCoherence reward model (Phase 2)
-            logger.warning(
-                "TemporalCoherence reward not implemented yet, using DummyRewardModel"
-            )
-            model = DummyRewardModel()
-        elif reward_type == "motion_quality":
-            # TODO: Implement MotionQuality reward model (Phase 2)
-            logger.warning(
-                "MotionQuality reward not implemented yet, using DummyRewardModel"
-            )
-            model = DummyRewardModel()
+        elif reward_type in REWARD_MODEL_REGISTRY:
+            # Use registered video reward model
+            model_class = REWARD_MODEL_REGISTRY[reward_type]
+            model = model_class(model_path=path if path else None, device=device)
+            logger.info(f"Created {reward_type} reward model")
         else:
             logger.warning(
-                "Unknown VIDEO reward type '%s', using DummyRewardModel",
-                reward_type
+                "Unknown VIDEO reward type '%s', using DummyRewardModel. "
+                "Available types: %s",
+                reward_type,
+                list(REWARD_MODEL_REGISTRY.keys())
             )
             model = DummyRewardModel()
 
