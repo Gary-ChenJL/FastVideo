@@ -223,6 +223,7 @@ class ValueModel(nn.Module):
             "Initialized ValueModel (share_backbone=%s)",
             share_backbone
         )
+        
 
     def forward(
         self,
@@ -378,6 +379,14 @@ def create_reward_models(
     for path, reward_type in zip(paths, types, strict=False):
         if reward_type == "dummy":
             model = DummyRewardModel()
+        elif reward_type == "paddle_ocr":
+            # TODO: Implement paddle ocr reward model
+            # logger.warning(
+            #     "PaddleOCR reward not implemented yet, using DummyRewardModel"
+            # )
+            # model = DummyRewardModel()
+
+            from .paddle_ocr import  
         elif reward_type == "video_score":
             # TODO: Implement VideoScore reward model (Phase 2)
             logger.warning(

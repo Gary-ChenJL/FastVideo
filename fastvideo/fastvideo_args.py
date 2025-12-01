@@ -651,7 +651,7 @@ class RLArgs:
 
     # Trajectory collection
     rl_num_rollouts: int = 4  # Number of rollouts to collect per training step
-    rl_rollout_steps: str = "20,30"  # Random intermediate steps for sampling (comma-separated)
+    rl_rollout_steps: str = 20  # Random intermediate steps for sampling (comma-separated)
     rl_noise_injection_min: int = 10  # Minimum timestep for noise injection
     rl_noise_injection_max: int = 40  # Maximum timestep for noise injection
     rl_use_sde_sampling: bool = True  # Use SDE sampling (Flow-GRPO-Fast)
@@ -664,11 +664,15 @@ class RLArgs:
     rl_normalize_advantages: bool = True  # Normalize advantages before policy update
 
     # Reward models
-    reward_model_paths: str = ""  # Comma-separated paths to reward models
-    reward_weights: str = ""  # Comma-separated weights for reward aggregation
-    reward_model_types: str = ""  # Comma-separated reward types (pickscore,geneval,ocr,etc)
-    value_model_path: str = ""  # Path to value model (can be empty to train from scratch)
-    value_model_share_backbone: bool = False  # Share transformer backbone between policy and value
+    rl_reward_model_paths: str = ""  # Comma-separated paths to reward models
+    rl_reward_weights: str = ""  # Comma-separated weights for reward aggregation
+    rl_reward_model_types: str = ""  # Comma-separated reward types (pickscore,geneval,ocr,etc)
+    rl_value_model_paths: str = ""  # Path to value model (can be empty to train from scratch)
+    rl_reward_functions = {
+        "video_ocr": 0.5,
+        "aesthetic_score": 0.5
+    }
+    rl_value_model_share_backbone: bool = False  # Share transformer backbone between policy and value
 
     # Training schedule
     rl_policy_value_update_ratio: float = 1.0  # Ratio of policy:value updates (like distillation)
@@ -679,7 +683,7 @@ class RLArgs:
     # GRPO-SPECIFIC CONFIGURATION
 
     # Policy optimization (GRPO/PPO shared)
-    rl_policy_clip_range: float = 0.2  # PPO-style clipping range for policy ratio
+    rl_policy_clip_range: float = 0.2  # GRPO-style clipping range for policy ratio
     rl_value_clip_range: float = 0.2  # Value function clipping range
     rl_num_policy_epochs: int = 1  # Number of policy update epochs (GRPO typically uses 1)
     rl_num_value_epochs: int = 1  # Number of value function update epochs
@@ -769,7 +773,7 @@ class TrainingArgs(FastVideoArgs):
     num_euler_timesteps: int = 0
     lr_num_cycles: int = 0
     lr_power: float = 0.0
-    min_lr_ratio: float = 0.5  # minimum learning rate ratio for cosine_with_min_lr scheduler
+    min_lr_ratio: float = 0.5  # minimum learning rate ratio for cosine_with_min_lr scheduler.
     not_apply_cfg_solver: bool = False
     distill_cfg: float = 0.0
     scheduler_type: str = ""
