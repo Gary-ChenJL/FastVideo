@@ -1,9 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """
-Utility functions for RL/GRPO training.
+Utility functions for RL training.
+
+Note: Some functions (compute_gae, compute_grpo_policy_loss, compute_value_loss,
+compute_policy_entropy, apply_gradient_reweighting, check_early_stopping) have been
+moved to the algorithm classes in fastvideo.training.rl.algorithms.
+These functions are kept here for backward compatibility but using the algorithm
+classes is recommended for new code.
 """
 
 from typing import Any
+import warnings
 
 import torch
 import torch.nn.functional as F
@@ -91,7 +98,6 @@ def normalize_advantages(
     std = advantages.std()
     return (advantages - mean) / (std + epsilon)
 
-#TODO(jiali): refactor into algorithm
 def compute_grpo_policy_loss(
     log_probs: torch.Tensor,
     old_log_probs: torch.Tensor,
