@@ -1100,15 +1100,15 @@ class RLPipeline(TrainingPipeline):
                         unclipped_loss = -advantages * ratio
                         clipped_loss = -advantages * torch.clamp(
                             ratio,
-                            1.0 - config.train.clip_range,
-                            1.0 + config.train.clip_range,
+                            1.0 - self.training_args.rl_args.grpo_policy_clip_range,
+                            1.0 + self.training_args.rl_args.grpo_policy_clip_range,
                         )
                         policy_loss = torch.mean(torch.maximum(unclipped_loss, clipped_loss))
 
-                        if config.train.beta > 0:
+                        if self.training_args.rl_args.kl_beta > 0:
                             kl_loss = ((prev_sample_mean - prev_sample_mean_ref) ** 2).mean(dim=(1,2,3), keepdim=True) / (2 * (std_dev_t * dt_ref) ** 2)
                             kl_loss = torch.mean(kl_loss)
-                            loss = policy_loss + config.train.beta * kl_loss
+                            loss = policy_loss + self.training_args.rl_args.kl_beta * kl_loss
                         else:
                             loss = policy_loss
 
@@ -1119,12 +1119,12 @@ class RLPipeline(TrainingPipeline):
                         info["clipfrac"].append(
                             torch.mean(
                                 (
-                                    torch.abs(ratio - 1.0) > config.train.clip_range
+                                    torch.abs(ratio - 1.0) > self.training_args.rl_args.grpo_policy_clip_range
                                 ).float()
                             )
                         )
                         info["policy_loss"].append(policy_loss)
-                        if config.train.beta > 0:
+                        if self.training_args.rl_args.kl_beta > 0:
                             info["kl_loss"].append(kl_loss)
 
                         info["loss"].append(loss)
@@ -1134,7 +1134,7 @@ class RLPipeline(TrainingPipeline):
                         
                         if accelerator.sync_gradients:
                             accelerator.clip_grad_norm_(
-                                transformer.parameters(), config.train.max_grad_norm
+                                transformer.parameters(), self.training_args.max_grad_norm # Review this line
                             )
                         optimizer.step()
                         optimizer.zero_grad()
