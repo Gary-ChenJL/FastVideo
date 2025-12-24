@@ -41,6 +41,8 @@ from fastvideo.dataset.rl_prompt_dataset import build_rl_prompt_dataloader
 from copy import deepcopy
 from collections.abc import Iterator
 
+from accelerate import Accelerator
+
 logger = init_logger(__name__)
 
 
@@ -1003,7 +1005,7 @@ class RLPipeline(TrainingPipeline):
         
         return total_loss, metrics
 
-    def train_one_step(self, training_batch: TrainingBatch) -> TrainingBatch:
+    def train_one_step(self, training_batch: TrainingBatch, accelerator: Accelerator, optimizer: torch.optim.Optimizer, ema: EMA, global_step: int, train_timesteps: list[int], train_neg_prompt_embeds: torch.Tensor) -> TrainingBatch:
         """
         Train one step using GRPO algorithm.
 
@@ -1024,76 +1026,133 @@ class RLPipeline(TrainingPipeline):
         # if training_batch.current_timestep < self.training_args.rl_args.rl_warmup_steps:
         #     logger.debug("In warmup phase, using standard SFT training")
         #     return super().train_one_step(training_batch)
+         
+         
+         # Shuffle  Samples for training, assuming samples is of the form as in FlowGRPO code
+        samples = self.collect_trajectories(training_batch) # Assuming the advantage and reward calculation is already done and is present in samples.
+        total_batch_size, num_timesteps = samples["timesteps"].shape
 
-        training_batch = self._prepare_training(training_batch)
+        perm = torch.randperm(total_batch_size, device=accelerator.device) # Shuffle samples along batch dimension
+        samples = {k: v[perm] for k, v in samples.items()}
+        
+        perms = torch.stack(
+                [
+                    # torch.randperm(num_timesteps, device=accelerator.device)
+                    torch.arange(num_timesteps, device=accelerator.device)
+                    for _ in range(total_batch_size)
+                ]
+            )  # shuffle along time dimension independently for each sample
+        for key in ["timesteps", "latents", "next_latents", "log_probs"]:
+                samples[key] = samples[key][
+                    torch.arange(total_batch_size, device=accelerator.device)[:, None],
+                    perms,
+                ]
+        micoe_batch = total_batch_size // (config.sample.num_batches_per_epoch * config.sample.sample_time_per_prompt) # Change this according to RLargs config
 
-        # Gradient accumulation loop
-        for _ in range(self.training_args.gradient_accumulation_steps):
-            # Get next batch of prompts (skip normalization steps for RL)
-            training_batch = self._get_next_batch(training_batch)
-            # Note: _normalize_dit_input and _prepare_dit_inputs are skipped for RL
-            # since we generate latents from prompts, not from pre-computed latents
+        samples_batched = {
+            k: v.reshape(-1, micoe_batch, *v.shape[1:])
+            for k, v in samples.items()
+        }
 
-            # === RL-specific steps ===
+        # dict of lists -> list of dicts for easier iteration
+        samples_batched = [
+                dict(zip(samples_batched, x)) for x in zip(*samples_batched.values())
+            ]
 
-            # 1. Collect trajectories (generates latents and log_probs)
-            training_batch = self.collect_trajectories(training_batch)
+        # train
+        self.transformer.train() # Review this, if it's correct 
+        info = defaultdict(list)
+        for i, sample in tqdm(
+                list(enumerate(samples_batched)),
+                desc=f"Epoch {epoch}.{inner_epoch}: training", # Change this according to how for loops are in workflow
+                position=0,
+                disable=not accelerator.is_local_main_process,
+            ):
+            if config.train.cfg:
+                    # concat negative prompts to sample prompts to avoid two forward passes
+                    embeds = sample["prompt_embeds"]
+                    negative_embeds = train_neg_prompt_embeds[:len(sample["prompt_embeds"])]
+            else:
+                embeds = sample["prompt_embeds"]
+                negative_embeds = None
+            for j in tqdm(
+                    train_timesteps,
+                    desc="Timestep",
+                    position=1,
+                    leave=False,
+                    disable=not accelerator.is_local_main_process,
+                ):
+                    with accelerator.accumulate(self.transformer): # Review this line is it really self.transformer or self.get_module("transformer")?
+                        with autocast():
+                            prev_sample, log_prob, prev_sample_mean, std_dev_t, dt = _compute_log_prob_for_timestep(transformer, pipeline, sample, j, embeds, negative_embeds, config) # Review this line
+                            if config.train.beta > 0:
+                                with torch.no_grad():
+                                    with transformer.module.disable_adapter(): # Review this as well.
+                                        prev_sample_ref, log_prob_ref, prev_sample_mean_ref, std_dev_t_ref, dt_ref = _compute_log_prob_for_timestep(transformer, pipeline, sample, j, embeds, negative_embeds, config) # Review this line check for input parameters
 
-            # 2. Compute rewards
-            training_batch = self.compute_rewards(training_batch)
+                        # grpo logic
+                        advantages = torch.clamp(
+                            sample["advantages"][:, j],
+                            -config.train.adv_clip_max,
+                            config.train.adv_clip_max,
+                        )
+                        ratio = torch.exp(log_prob - sample["log_probs"][:, j])
+                        unclipped_loss = -advantages * ratio
+                        clipped_loss = -advantages * torch.clamp(
+                            ratio,
+                            1.0 - config.train.clip_range,
+                            1.0 + config.train.clip_range,
+                        )
+                        policy_loss = torch.mean(torch.maximum(unclipped_loss, clipped_loss))
 
-            # 3. Compute value predictions (if algorithm requires)
-            # training_batch = self.compute_values(training_batch)
+                        if config.train.beta > 0:
+                            kl_loss = ((prev_sample_mean - prev_sample_mean_ref) ** 2).mean(dim=(1,2,3), keepdim=True) / (2 * (std_dev_t * dt_ref) ** 2)
+                            kl_loss = torch.mean(kl_loss)
+                            loss = policy_loss + config.train.beta * kl_loss
+                        else:
+                            loss = policy_loss
 
-            # 4. Compute advantages
-            training_batch = self.compute_advantages(training_batch)
+                        info["approx_kl"].append(
+                            0.5
+                            * torch.mean((log_prob - sample["log_probs"][:, j]) ** 2)
+                        )
+                        info["clipfrac"].append(
+                            torch.mean(
+                                (
+                                    torch.abs(ratio - 1.0) > config.train.clip_range
+                                ).float()
+                            )
+                        )
+                        info["policy_loss"].append(policy_loss)
+                        if config.train.beta > 0:
+                            info["kl_loss"].append(kl_loss)
 
-            # 5. Compute GRPO loss
-            if training_batch.log_probs is not None and training_batch.old_log_probs is not None:
-                # Compute GRPO loss (policy loss + KL loss)
-                total_loss, metrics = self._compute_grpo_loss(training_batch)
-                
-                # Store metrics in training batch
-                training_batch.policy_loss = metrics.get("policy_loss", 0.0)
-                training_batch.kl_divergence = metrics.get("kl_loss", 0.0)  # KL loss is the KL divergence
-                training_batch.importance_ratio = metrics.get("importance_ratio_mean", 1.0)
-                training_batch.clip_fraction = metrics.get("clip_fraction", 0.0)
-                training_batch.value_loss = 0.0  # GRPO doesn't use value loss
-                training_batch.entropy = 0.0  # Not computed for now
-                
-                # Backward pass with scaled loss
-                scaled_loss = total_loss / self.training_args.gradient_accumulation_steps
-                scaled_loss.backward()
-                
-                # Accumulate total loss
-                if training_batch.total_loss is None:
-                    training_batch.total_loss = 0.0
-                training_batch.total_loss += total_loss.item()
+                        info["loss"].append(loss)
 
-        # Clip gradients
-        training_batch = self._clip_grad_norm(training_batch)
+                        # backward pass
+                        accelerator.backward(loss)
+                        
+                        if accelerator.sync_gradients:
+                            accelerator.clip_grad_norm_(
+                                transformer.parameters(), config.train.max_grad_norm
+                            )
+                        optimizer.step()
+                        optimizer.zero_grad()
 
-        # Optimizer step
-        with self.tracker.timed("timing/optimizer_step"):
-            self.optimizer.step()
-            self.lr_scheduler.step()
-
-            if self.value_optimizer is not None:
-                self.value_optimizer.step()
-                self.value_scheduler.step()
-
-        # Check for early stopping based on KL divergence
-        # Use a simple threshold check (hardcoded for now)
-        kl_threshold = 0.1  # Hardcoded
-        if training_batch.kl_divergence > kl_threshold:
-            logger.warning(
-                "High KL divergence at step %d: %.4f > %.4f",
-                training_batch.current_timestep,
-                training_batch.kl_divergence,
-                kl_threshold
-            )
-
-        return training_batch
+                    # Checks if the accelerator has performed an optimization step behind the scenes
+                    if accelerator.sync_gradients:
+                        # assert (j == train_timesteps[-1]) and (
+                        #     i + 1
+                        # ) % config.train.gradient_accumulation_steps == 0
+                        # log training-related stuff
+                        info = {k: torch.mean(torch.stack(v)) for k, v in info.items()}
+                        info = accelerator.reduce(info, reduction="mean")
+                        info.update({"epoch": epoch, "inner_epoch": inner_epoch})
+                        accelerator.log(info, step=global_step)
+                        global_step += 1
+                        info = defaultdict(list)
+            if config.train.ema:
+                ema.step(transformer_trainable_parameters, global_step)
 
     def set_trainable(self) -> None:
         """Set which parameters should be trainable."""
