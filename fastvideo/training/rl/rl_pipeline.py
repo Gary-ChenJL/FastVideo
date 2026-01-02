@@ -296,8 +296,18 @@ class RLPipeline(TrainingPipeline):
         logger.info("RL validation pipeline will be implemented based on task requirements")
         # Set validation_pipeline to None for now
         self.validation_pipeline = None
+    
+    def compute_text_embeddings(self, prompt, text_encoders, tokenizers, max_sequence_length, device):
+        with torch.no_grad():
+            prompt_embeds = encode_prompt(
+                text_encoders, tokenizers, prompt, max_sequence_length
+            )
+            prompt_embeds = prompt_embeds.to(device)
+            # pooled_prompt_embeds = pooled_prompt_embeds.to(device)
+        return prompt_embeds
 
-    def collect_trajectories(self, training_batch: TrainingBatch) -> TrainingBatch:
+
+    def collect_trajectories(self, text_encoders, tokenizers, max_sequence_length, device, prompt) -> TrainingBatch:
         """
         Collect on-policy trajectories by generating videos with log probabilities.
         
@@ -322,177 +332,142 @@ class RLPipeline(TrainingPipeline):
             - prompt_embeds: [B, seq_len, hidden_dim] - prompt embeddings used
             - negative_prompt_embeds: [B, seq_len, hidden_dim] - negative embeddings for CFG
         """
-        if self.sampling_pipeline is None:
-            raise RuntimeError("Sampling pipeline not initialized. Call initialize_training_pipeline first.")
-        
-        logger.debug("Collecting trajectories with GRPO sampling")
-        
-        # Get prompts from batch
-        # Prompts can be in input_kwargs["prompts"] or in infos
-        prompts = None
-        if training_batch.input_kwargs is not None and "prompts" in training_batch.input_kwargs:
-            prompts = training_batch.input_kwargs["prompts"]
-        elif training_batch.infos is not None:
-            # Extract prompts from infos (each info dict should have 'prompt' or 'caption')
-            prompts = []
-            for info in training_batch.infos:
-                prompt = info.get("prompt") or info.get("caption", "")
-                prompts.append(prompt)
-        else:
-            raise ValueError(
-                "Cannot find prompts in training_batch. "
-                "Prompts should be in input_kwargs['prompts'] or infos[]['prompt'/'caption']"
-            )
-        
-        # Normalize to list
-        if isinstance(prompts, str):
-            prompts = [prompts]
-        batch_size = len(prompts)
-        
-        # Get sampling configuration (hardcoded for now, as per plan)
-        # These should come from config later
-        num_inference_steps = 20  # config.sample.num_steps - hardcoded
-        guidance_scale = 4.5  # config.sample.guidance_scale - hardcoded
-        num_frames = self.training_args.num_frames if self.training_args.num_frames > 0 else 33
-        height = self.training_args.num_height if self.training_args.num_height > 0 else 240
-        width = self.training_args.num_width if self.training_args.num_width > 0 else 416
-        num_videos_per_prompt = 1  # Each prompt in batch generates one video (batch already has repeated prompts if needed)
-        sample_time_per_prompt = 1  # config.sample.sample_time_per_prompt - hardcoded
-        kl_reward = getattr(self.training_args.rl_args, 'rl_kl_reward', 0.0)
-        
-        # Get tokenizer for prompt_ids
-        tokenizer = self.get_module("tokenizer")
-        
-        # Tokenize prompts to get prompt_ids for stat tracking
-        prompt_ids = tokenizer(
-            prompts,
-            padding="max_length",
-            max_length=512,
-            truncation=True,
-            return_tensors="pt"
-        ).input_ids.to(get_local_torch_device())
-        
-        # Prepare negative prompt embeddings for CFG
-        negative_prompt = [""] * batch_size
-        negative_prompt_embeds = None
-        
-        # Collect samples (multiple samples per prompt if sample_time_per_prompt > 1)
-        all_latents_list = []
-        all_log_probs_list = []
-        all_kl_list = []
-        all_timesteps_list = []
-        all_prompt_embeds_list = []
-        all_negative_prompt_embeds_list = []
-        all_prompt_ids_list = []
-        
-        # Set transformer to eval mode for sampling
         self.transformer.eval()
-        
-        with torch.no_grad():
-            # Sample multiple times per prompt if needed
-            for sample_idx in range(sample_time_per_prompt):
-                # Generate videos with log probabilities
-                # Note: wan_pipeline_with_logprob returns:
-                # - videos: Generated video tensor or latents [B, C, T, H, W]
-                # - all_latents: List of latents at each step [num_steps+1] of [B, C, T, H, W]
-                # - all_log_probs: List of log probs at each step [num_steps] of [B]
-                # - all_kl: List of KL divergences [num_steps] of [B]
-                videos, latents_list, log_probs_list, kl_list = wan_pipeline_with_logprob(
-                    self.sampling_pipeline,
-                    prompt=prompts,
-                    negative_prompt=negative_prompt if guidance_scale > 1.0 else None,
-                    height=height,
-                    width=width,
-                    num_frames=num_frames,
-                    num_inference_steps=num_inference_steps,
-                    guidance_scale=guidance_scale,
-                    num_videos_per_prompt=num_videos_per_prompt,
-                    generator=self.noise_random_generator,
-                    output_type="latent",  # Return latents, not decoded videos (videos decoded in compute_rewards)
-                    determistic=False,  # Use stochastic sampling
-                    kl_reward=kl_reward,
+        samples = []
+        prompts = []
+        for i in tqdm(
+            range(self.training_args.sample_num_batches_per_epoch),
+            desc=f"Epoch {epoch}: sampling",
+            disable=not accelerator.is_local_main_process,
+            position=0,
+        ):
+            train_sampler.set_epoch(epoch * self.training_args.sample_num_batches_per_epoch + i)
+            prompts, prompt_metadata = next(train_iter)
+
+            prompt_embeds = self.compute_text_embeddings(
+                prompts, 
+                text_encoders, 
+                tokenizers, 
+                max_sequence_length=512,
+                device=accelerator.device
+            )
+            prompt_ids = tokenizers[0](
+                prompts,
+                padding="max_length",
+                max_length=512, 
+                truncation=True,
+                return_tensors="pt",
+            ).input_ids.to(accelerator.device)
+            if i==0 and epoch % self.training_args.eval_freq == 0 and epoch>0:
+                eval(pipeline, test_dataloader, text_encoders, tokenizers, config, accelerator, global_step, eval_reward_fn, executor, autocast, num_train_timesteps, ema, transformer_trainable_parameters)
+            if i==0 and epoch % self.training_args.save_freq == 0 and epoch>0 and accelerator.is_main_process:
+                save_ckpt(self.training_args.save_dir, transformer, global_step, accelerator, ema, transformer_trainable_parameters, config)
+            # 这里是故意的，因为前两个epoch收集的group size会有bug,经过两个epoch后，group_size稳定成指定的
+            if epoch < 2:
+                continue
+            # sample
+            for j in tqdm(
+                range(config.sample_time_per_prompt),
+                desc=f"Epoch {epoch}: sampling | multi sample per prompt",
+                disable=not accelerator.is_local_main_process,
+                position=1,
+            ):
+                with autocast():
+                    with torch.no_grad():
+                        videos, latents, log_probs, kls = wan_pipeline_with_logprob(
+                            pipeline,
+                            prompt_embeds=prompt_embeds,
+                            negative_prompt_embeds=sample_neg_prompt_embeds,
+                            num_inference_steps=self.training_args.num_steps,
+                            guidance_scale=self.training_args.guidance_scale,
+                            output_type="pt",
+                            return_dict=False,
+                            num_frames=self.training_args.num_frames,
+                            height=self.training_args.num_height,
+                            width=self.training_args.num_width, 
+                            kl_reward=getattr(self.training_args.rl_args, 'rl_kl_reward', 0.0),
+                    )
+
+                latents = torch.stack(
+                    latents, dim=1
+                )  # (batch_size, num_steps + 1, 16, 96, 96)
+                log_probs = torch.stack(log_probs, dim=1)  # shape after stack (batch_size, num_steps)
+                kls = torch.stack(kls, dim=1) 
+                kl = kls.detach()
+
+                timesteps = self.get_module("scheduler").timesteps.repeat(
+                    self.training_args.sample_train_batch_size, 1
+                )  # (batch_size, num_steps)
+
+                # compute rewards asynchronously
+                rewards = executor.submit(reward_fn, videos, prompts, prompt_metadata, only_strict=True)
+                # images b, 3, 512, 512
+                # yield to to make sure reward computation starts
+                time.sleep(0)
+                
+                samples.append(
+                    {
+                        "prompt_ids": prompt_ids,   # b, 77
+                        "prompt_embeds": prompt_embeds,    # b, 205, 4096
+                        "negative_prompt_embeds": sample_neg_prompt_embeds,
+                        "timesteps": timesteps,
+                        "latents": latents[
+                            :, :-1
+                        ],  # each entry is the latent before timestep t.   b, 11, 16, 64, 64
+                        "next_latents": latents[
+                            :, 1:
+                        ],  # each entry is the latent after timestep t
+                        "log_probs": log_probs,   # b, t + 1
+                        "kl": kl,
+                        "rewards": rewards,
+                    }
                 )
-                
-                # Stack latents: latents_list is [num_steps+1] where each element is [B, C, T, H, W]
-                # Stack along a new dimension: [B, num_steps+1, C, T, H, W]
-                latents = torch.stack(latents_list, dim=1)
-                
-                # Stack log_probs: log_probs_list is [num_steps] where each element is [B]
-                # Stack along a new dimension: [B, num_steps]
-                log_probs = torch.stack(log_probs_list, dim=1)
-                
-                # Stack KL: kl_list is [num_steps] where each element is [B]
-                # Stack along a new dimension: [B, num_steps]
-                # Note: kl_list is always returned (zeros if kl_reward == 0)
-                kl = torch.stack(kl_list, dim=1) if len(kl_list) > 0 else None
-                
-                # Get timesteps from scheduler
-                scheduler = self.get_module("scheduler")
-                timesteps = scheduler.timesteps.repeat(batch_size, 1)  # [B, num_steps]
-                
-                # Get prompt embeddings (they were computed inside wan_pipeline_with_logprob)
-                # For now, we'll recompute them if needed, or store None and recompute later
-                # Actually, we can get them from the pipeline's last encoding
-                # For simplicity, we'll store None and recompute when needed
-                prompt_embeds = None  # Will be recomputed if needed
-                
-                # Store in lists
-                all_latents_list.append(latents)
-                all_log_probs_list.append(log_probs)
-                all_kl_list.append(kl)  # kl is always computed (may be zeros if kl_reward == 0)
-                all_timesteps_list.append(timesteps)
-                all_prompt_embeds_list.append(prompt_embeds)
-                all_negative_prompt_embeds_list.append(None)  # Will be set if needed
-                all_prompt_ids_list.append(prompt_ids)
-        
-        # Concatenate across sample_time_per_prompt dimension (if sample_time_per_prompt > 1)
-        if sample_time_per_prompt > 1:
-            # Shape: [B * sample_time_per_prompt, num_steps+1, C, T, H, W]
-            training_batch.latents = torch.cat(all_latents_list, dim=0)
-            # Shape: [B * sample_time_per_prompt, num_steps]
-            training_batch.log_probs = torch.cat(all_log_probs_list, dim=0)
-            # Shape: [B * sample_time_per_prompt, num_steps]
-            training_batch.timesteps = torch.cat(all_timesteps_list, dim=0)
-            # Store KL if computed
-            training_batch.kl = torch.cat(all_kl_list, dim=0) if all_kl_list[0] is not None else None
-            # Store prompt_ids (repeat for each sample)
-            training_batch.prompt_ids = torch.cat(all_prompt_ids_list, dim=0)
-        else:
-            # Single sample per prompt
-            training_batch.latents = all_latents_list[0]  # [B, num_steps+1, C, T, H, W]
-            training_batch.log_probs = all_log_probs_list[0]  # [B, num_steps]
-            training_batch.timesteps = all_timesteps_list[0]  # [B, num_steps]
-            training_batch.kl = all_kl_list[0] if len(all_kl_list) > 0 and all_kl_list[0] is not None else None
-            training_batch.prompt_ids = all_prompt_ids_list[0]  # [B, seq_len]
-        
-        # Store old log probs for importance ratio computation
-        training_batch.old_log_probs = training_batch.log_probs.clone()
-        
-        # Store prompt_embeds and negative_prompt_embeds (None for now, will be recomputed if needed)
-        training_batch.prompt_embeds = None
-        training_batch.negative_prompt_embeds = None
-        
-        # Store prompts in input_kwargs for reward computation
-        if training_batch.input_kwargs is None:
-            training_batch.input_kwargs = {}
-        # Repeat prompts for each sample if sample_time_per_prompt > 1
-        if sample_time_per_prompt > 1:
-            repeated_prompts = []
-            for prompt in prompts:
-                for _ in range(sample_time_per_prompt):
-                    repeated_prompts.append(prompt)
-            training_batch.input_kwargs["prompts"] = repeated_prompts
-        else:
-            training_batch.input_kwargs["prompts"] = prompts
-        
-        logger.debug(
-            "Trajectory collection complete: batch_size=%d, latents_shape=%s, log_probs_shape=%s",
-            training_batch.latents.shape[0],
-            training_batch.latents.shape,
-            training_batch.log_probs.shape
+        for sample in tqdm(
+        samples,
+        desc="Waiting for rewards",
+        disable=not accelerator.is_local_main_process,
+        position=0,
+    ):
+            rewards, reward_metadata = sample["rewards"].result()
+            # accelerator.print(reward_metadata)
+            sample["rewards"] = {
+                key: torch.as_tensor(value, device=accelerator.device).float()
+                for key, value in rewards.items()
+            }
+
+        # collate samples into dict where each entry has shape (num_batches_per_epoch * sample.batch_size, ...)
+        samples = {
+            k: torch.cat([s[k] for s in samples], dim=0)
+            if not isinstance(samples[0][k], dict)
+            else {
+                sub_key: torch.cat([s[k][sub_key] for s in samples], dim=0)
+                for sub_key in samples[0][k]
+            }
+            for k in samples[0].keys()
+        }
+        # gather rewards across processes
+        gathered_rewards = {key: accelerator.gather(value) for key, value in samples["rewards"].items()}
+        gathered_rewards = {key: value.cpu().numpy() for key, value in gathered_rewards.items()}
+        # log rewards and images
+        accelerator.log(
+            {
+                "epoch": epoch,
+                **{f"reward_{key}": value.mean() for key, value in gathered_rewards.items() if '_strict_accuracy' not in key and '_accuracy' not in key},
+                "kl": samples["kl"].mean().cpu().numpy(),
+                "kl_abs": samples["kl"].abs().mean().cpu().numpy()
+            },
+            step=global_step,
         )
-        
-        return training_batch
+        advantages = (gathered_rewards['avg'] - gathered_rewards['avg'].mean()) / (gathered_rewards['avg'].std() + 1e-4)
+        advantages = torch.as_tensor(advantages)
+        samples["advantages"] = (
+            advantages.reshape(accelerator.num_processes, -1, advantages.shape[-1])[accelerator.process_index]
+            .to(accelerator.device)
+        )
+        # del samples["rewards"]
+        # del samples["prompt_ids"]
+
+
 
     def compute_rewards(self, training_batch: TrainingBatch) -> TrainingBatch:
         """
@@ -1031,6 +1006,7 @@ class RLPipeline(TrainingPipeline):
          # Shuffle  Samples for training, assuming samples is of the form as in FlowGRPO code
         samples = self.collect_trajectories(training_batch) # Assuming the advantage and reward calculation is already done and is present in samples.
         total_batch_size, num_timesteps = samples["timesteps"].shape
+        assert num_timesteps == config.num_steps
 
         perm = torch.randperm(total_batch_size, device=accelerator.device) # Shuffle samples along batch dimension
         samples = {k: v[perm] for k, v in samples.items()}
@@ -1047,7 +1023,7 @@ class RLPipeline(TrainingPipeline):
                     torch.arange(total_batch_size, device=accelerator.device)[:, None],
                     perms,
                 ]
-        micoe_batch = total_batch_size // (config.sample.num_batches_per_epoch * config.sample.sample_time_per_prompt) # Change this according to RLargs config
+        micoe_batch = total_batch_size // (config.sample_num_batches_per_epoch * config.sample_time_per_prompt) # Change this according to RLargs config
 
         samples_batched = {
             k: v.reshape(-1, micoe_batch, *v.shape[1:])
