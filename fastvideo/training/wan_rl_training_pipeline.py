@@ -70,16 +70,12 @@ class WanRLTrainingPipeline(RLPipeline):
 def main(args) -> None:
     """Main entry point for RL training."""
     logger.info("Starting RL training pipeline...")
-    logger.info("Algorithm: %s", args.rl_args.rl_algorithm)
-
-    # Ensure RL mode is enabled
-    if not args.rl_args.rl_mode:
-        logger.warning("rl_mode not set, enabling automatically")
-        args.rl_args.rl_mode = True
 
     pipeline = WanRLTrainingPipeline.from_pretrained(
         args.pretrained_model_name_or_path, args=args)
     args = pipeline.training_args
+
+    logger.info("Algorithm: %s", args.rl_args.rl_algorithm)
     pipeline.train()
     logger.info("RL training pipeline done")
 
@@ -93,7 +89,4 @@ if __name__ == "__main__":
     parser = FastVideoArgs.add_cli_args(parser)
     args = parser.parse_args()
     args.dit_cpu_offload = False
-
-    # Convert to TrainingArgs to get nested RLArgs
-    training_args = TrainingArgs.from_cli_args(args)
-    main(training_args)
+    main(args)
