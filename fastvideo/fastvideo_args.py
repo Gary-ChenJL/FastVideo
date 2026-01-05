@@ -673,7 +673,7 @@ class RLArgs:
     num_inner_epochs: int = 1  # Number of inner epochs per outer epoch
 
     # KL regularization
-    kl_beta: float = 0.004  # KL loss coefficient (GRPO uses KL loss, DPO uses larger beta)
+    kl_beta: float = 0.04  # KL loss coefficient (GRPO uses KL loss, DPO uses larger beta)
     kl_reward: float = 0.0  # KL reward coefficient (alternative to KL loss, typically 0)
 
     # SFT integration
@@ -704,7 +704,35 @@ class RLArgs:
     grpo_ratio_norm_correction: bool = True  # RatioNorm: correct importance ratio bias
     grpo_gradient_reweighting: bool = True  # Reweight gradients across denoising steps
     grpo_max_importance_ratio: float = 10.0  # Clip importance ratios above this value
+    
+    # Sampling Parameters
+    # number of sampler inference steps for collecting dataset.
+    num_steps: int = 40
+    # number of sampler inference steps for evaluation.
+    eval_num_steps: int = 40
+    # classifier-free guidance weight. 1.0 is no guidance.
+    guidance_scale: float = 4.5
+    # classifier-free guidance weight for evaluation. 1.0 is no guidance.
+    eval_guidance_scale: float = 4.5
+    # batch size (per GPU!) to use for sampling.
+    sample_train_batch_size: int = 1
+    num_image_per_prompt: int = 1
+    sample_test_batch_size: int = 1
+    # number of batches to sample per epoch. the total number of samples per epoch is `num_batches_per_epoch *
+    # batch_size * num_gpus`.
+    sample_num_batches_per_epoch: int = 2
+    # Whether use all samples in a batch to compute std
+    global_std: bool = True
+    # noise level
+    noise_level: float = 0.7
+    # Whether to use the same noise for the same prompt
+    same_latent: bool = False
+    # sde window size
+    sde_window_size: int = 2
+    # sde window range
+    sde_window_range: tuple[int, int] = (0, 10)
 
+    sample_time_per_prompt: int = 1
     # ============================================================================
     # DPO-SPECIFIC CONFIGURATION
 
@@ -929,34 +957,7 @@ class TrainingArgs(FastVideoArgs):
     training_cfg_rate: float = 0.0
     precondition_outputs: bool = False
 
-    # Sampling Parameters
-    # number of sampler inference steps for collecting dataset.
-    num_steps: int = 40
-    # number of sampler inference steps for evaluation.
-    eval_num_steps: int = 40
-    # classifier-free guidance weight. 1.0 is no guidance.
-    guidance_scale: float = 4.5
-    # classifier-free guidance weight for evaluation. 1.0 is no guidance.
-    eval_guidance_scale: float = 4.5
-    # batch size (per GPU!) to use for sampling.
-    sample_train_batch_size: int = 1
-    num_image_per_prompt: int = 1
-    sample_test_batch_size: int = 1
-    # number of batches to sample per epoch. the total number of samples per epoch is `num_batches_per_epoch *
-    # batch_size * num_gpus`.
-    sample_num_batches_per_epoch: int = 2
-    # Whether use all samples in a batch to compute std
-    global_std: bool = True
-    # noise level
-    noise_level: float = 0.7
-    # Whether to use the same noise for the same prompt
-    same_latent: bool = False
-    # sde window size
-    sde_window_size: int = 2
-    # sde window range
-    sde_window_range: tuple[int, int] = (0, 10)
-
-    sample_time_per_prompt: int = 1
+    
     
 
     # validation & logs
