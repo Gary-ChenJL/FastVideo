@@ -698,6 +698,7 @@ class RLArgs:
     grpo_target_kl: float = 0.01  # Target KL divergence for early stopping
     grpo_entropy_coef: float = 0.0  # Entropy coefficient for exploration
     grpo_value_loss_coef: float = 0.5  # Value loss coefficient
+    adv_clip_max: float = 5.0  # Maximum value for advantage clipping
 
     # GRPO-Guard safety mechanisms
     grpo_use_grpo_guard: bool = True  # Enable GRPO-Guard safety mechanisms
@@ -956,6 +957,7 @@ class TrainingArgs(FastVideoArgs):
     ema_start_step: int = 0
     training_cfg_rate: float = 0.0
     precondition_outputs: bool = False
+    cfg: bool = True
 
     
     
@@ -1013,6 +1015,9 @@ class TrainingArgs(FastVideoArgs):
     pred_decay_weight: float = 0.0
     pred_decay_type: str = ""
     hunyuan_teacher_disable_cfg: bool = False
+    adam_epsilon: float = 0.0
+    # allow tf32 on Ampere GPUs, which can speed up training.
+    allow_tf32: bool = True
 
     # master_weight_type
     master_weight_type: str = ""

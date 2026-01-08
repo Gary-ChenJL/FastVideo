@@ -41,7 +41,15 @@ from fastvideo.dataset.rl_prompt_dataset import build_rl_prompt_dataloader
 from copy import deepcopy
 from collections.abc import Iterator
 
-from accelerate import Accelerator
+import contextlib
+import tqdm
+from collections import defaultdict
+from concurrent import futures
+import imageio
+import numpy as np
+import tempfile
+import time
+import os 
 
 logger = init_logger(__name__)
 
@@ -133,6 +141,7 @@ class RLPipeline(TrainingPipeline):
         )
                
         self.train_dataloader = train_dataloader
+        self.test_dataloader = test_dataloader
         self.train_dataset = train_dataset
         self.train_loader_iter = iter(self.train_dataloader)
         self.current_epoch = 0
@@ -306,8 +315,106 @@ class RLPipeline(TrainingPipeline):
             # pooled_prompt_embeds = pooled_prompt_embeds.to(device)
         return prompt_embeds
 
+    def eval(self, pipeline, test_dataloader, text_encoders, tokenizers, reward_fn, executor):
+        
+        neg_prompt_embed = self.compute_text_embeddings([""], text_encoders, tokenizers, max_sequence_length=512, device=self.device)
 
-    def collect_trajectories(self, text_encoders, tokenizers, max_sequence_length, device, prompt) -> TrainingBatch:
+        sample_neg_prompt_embeds = neg_prompt_embed.repeat(self.training_args.rl_args.sample_test_batch_size, 1, 1)
+
+        all_rewards = defaultdict(list)
+        for test_batch in tqdm(
+                test_dataloader,
+                desc="Eval: ",
+                # disable=not accelerator.is_local_main_process,
+                position=0,
+            ):
+            prompts, prompt_metadata = test_batch
+            prompt_embeds = self.compute_text_embeddings(
+                prompts, 
+                text_encoders, 
+                tokenizers, 
+                max_sequence_length=512,
+                device=self.device
+            )
+            # 最后一个batch可能不够batch_size
+            if len(prompt_embeds)<len(sample_neg_prompt_embeds):
+                sample_neg_prompt_embeds = sample_neg_prompt_embeds[:len(prompt_embeds)]
+
+            # with autocast():
+            with torch.no_grad():
+                videos, latents, log_probs, _ = wan_pipeline_with_logprob(
+                    pipeline,
+                    prompt_embeds=prompt_embeds,
+                    negative_prompt_embeds=sample_neg_prompt_embeds,
+                    num_inference_steps=self.training_args.rl_args.eval_num_steps,
+                    guidance_scale=self.training_args.rl_args.guidance_scale,
+                    output_type="pt",
+                    return_dict=False,
+                    num_frames=self.training_args.num_frames,
+                    height=self.training_args.num_height,
+                    width=self.training_args.num_width, 
+                    determistic=True,
+                )
+            rewards = executor.submit(reward_fn, videos, prompts, prompt_metadata, only_strict=False)
+            # yield to to make sure reward computation starts
+            time.sleep(0)
+            rewards, reward_metadata = rewards.result()
+
+            for key, value in rewards.items():
+                rewards_np = torch.as_tensor(value, device=self.device).cpu().numpy()
+                all_rewards[key].append(rewards_np)
+        last_batch_videos_np = videos.cpu().numpy()
+        last_batch_prompt_ids = tokenizers[0](
+            prompts,
+            padding="max_length",
+            max_length=512, 
+            truncation=True,
+            return_tensors="pt",
+        ).input_ids.to(self.device)
+
+        last_batch_prompts = pipeline.tokenizer.batch_decode(
+            last_batch_prompt_ids.cpu().numpy(), skip_special_tokens=True
+        )
+        last_batch_rewards = {}
+        for key, value in rewards.items():
+            last_batch_rewards[key] = torch.as_tensor(value, device=self.device).cpu().numpy()
+
+        all_rewards = {key: np.concatenate(value) for key, value in all_rewards.items()}
+    
+        # if accelerator.is_main_process:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            num_samples = min(15, len(last_batch_videos_np))
+            sample_indices = range(num_samples)
+            for idx, index in enumerate(sample_indices):
+                video = last_batch_videos_np[index].transpose(0, 2, 3, 1)
+                frames = [img for img in video]
+                frames = [(frame * 255).astype(np.uint8) for frame in frames]
+                imageio.mimsave(os.path.join(tmpdir, f"{idx}.mp4"), frames, fps=8, codec="libx264", format='FFMPEG')
+
+            sampled_prompts = [last_batch_prompts[index] for index in sample_indices]
+            sampled_rewards = [{k: last_batch_rewards[k][index] for k in last_batch_rewards} for index in sample_indices]
+            for key, value in all_rewards.items():
+                print(key, value.shape)
+            # accelerator.log(
+            #     {
+            #         "eval_images": [
+            #             wandb.Video(
+            #                 os.path.join(tmpdir, f"{idx}.mp4"),
+            #                 caption=f"{prompt:.1000} | " + " | ".join(f"{k}: {v:.2f}" for k, v in reward.items() if v != -10),
+            #                 format="mp4",
+            #                 fps=8 
+            #             )
+            #             for idx, (prompt, reward) in enumerate(zip(sampled_prompts, sampled_rewards))
+            #         ],
+            #         **{f"eval_reward_{key}": np.mean(value[value != -10]) for key, value in all_rewards.items()},
+            #     },
+            #     step=global_step,
+            # )
+      
+
+
+
+    def collect_trajectories(self, text_encoders, tokenizers, sample_neg_prompt_embeds) -> TrainingBatch:
         """
         Collect on-policy trajectories by generating videos with log probabilities.
         
@@ -338,7 +445,7 @@ class RLPipeline(TrainingPipeline):
         for i in tqdm(
             range(self.training_args.rl_args.sample_num_batches_per_epoch),
             desc=f"Epoch {epoch}: sampling",
-            disable=not accelerator.is_local_main_process,
+            # disable=not accelerator.is_local_main_process,
             position=0,
         ):
             train_sampler.set_epoch(epoch * self.training_args.rl_args.sample_num_batches_per_epoch + i)
@@ -349,7 +456,7 @@ class RLPipeline(TrainingPipeline):
                 text_encoders, 
                 tokenizers, 
                 max_sequence_length=512,
-                device=accelerator.device
+                device=self.device
             )
             prompt_ids = tokenizers[0](
                 prompts,
@@ -357,9 +464,9 @@ class RLPipeline(TrainingPipeline):
                 max_length=512, 
                 truncation=True,
                 return_tensors="pt",
-            ).input_ids.to(accelerator.device)
+            ).input_ids.to(self.device)
             if i==0 and epoch % self.training_args.eval_freq == 0 and epoch>0:
-                eval(pipeline, test_dataloader, text_encoders, tokenizers, config, accelerator, global_step, eval_reward_fn, executor, autocast, num_train_timesteps, ema, transformer_trainable_parameters)
+                self.eval(pipeline, self.test_dataloader, text_encoders, tokenizers, eval_reward_fn, executor)
             if i==0 and epoch % self.training_args.save_freq == 0 and epoch>0 and accelerator.is_main_process:
                 save_ckpt(self.training_args.save_dir, transformer, global_step, accelerator, ema, transformer_trainable_parameters, config)
             # 这里是故意的，因为前两个epoch收集的group size会有bug,经过两个epoch后，group_size稳定成指定的
@@ -367,26 +474,26 @@ class RLPipeline(TrainingPipeline):
                 continue
             # sample
             for j in tqdm(
-                range(config.sample_time_per_prompt),
-                desc=f"Epoch {epoch}: sampling | multi sample per prompt",
-                disable=not accelerator.is_local_main_process,
+                range(self.training_args.rl_args.sample_time_per_prompt),
+                # desc=f"Epoch {epoch}: sampling | multi sample per prompt",
+                # disable=not accelerator.is_local_main_process,
                 position=1,
             ):
-                with autocast():
-                    with torch.no_grad():
-                        videos, latents, log_probs, kls = wan_pipeline_with_logprob(
-                            pipeline,
-                            prompt_embeds=prompt_embeds,
-                            negative_prompt_embeds=sample_neg_prompt_embeds,
-                            num_inference_steps=self.training_args.rl_args.num_steps,
-                            guidance_scale=self.training_args.rl_args.guidance_scale,
-                            output_type="pt",
-                            return_dict=False,
-                            num_frames=self.training_args.num_frames,
-                            height=self.training_args.num_height,
-                            width=self.training_args.num_width, 
-                            kl_reward=getattr(self.training_args.rl_args, 'kl_reward', 0.0),
-                    )
+                # with autocast():
+                with torch.no_grad():
+                    videos, latents, log_probs, kls = wan_pipeline_with_logprob(
+                        pipeline,
+                        prompt_embeds=prompt_embeds,
+                        negative_prompt_embeds=sample_neg_prompt_embeds,
+                        num_inference_steps=self.training_args.rl_args.num_steps,
+                        guidance_scale=self.training_args.rl_args.guidance_scale,
+                        output_type="pt",
+                        return_dict=False,
+                        num_frames=self.training_args.num_frames,
+                        height=self.training_args.num_height,
+                        width=self.training_args.num_width, 
+                        kl_reward=getattr(self.training_args.rl_args, 'kl_reward', 0.0),
+                )
 
                 latents = torch.stack(
                     latents, dim=1
@@ -425,13 +532,13 @@ class RLPipeline(TrainingPipeline):
         for sample in tqdm(
         samples,
         desc="Waiting for rewards",
-        disable=not accelerator.is_local_main_process,
+        # disable=not accelerator.is_local_main_process,
         position=0,
     ):
             rewards, reward_metadata = sample["rewards"].result()
             # accelerator.print(reward_metadata)
             sample["rewards"] = {
-                key: torch.as_tensor(value, device=accelerator.device).float()
+                key: torch.as_tensor(value, device=self.device).float()
                 for key, value in rewards.items()
             }
 
@@ -446,24 +553,25 @@ class RLPipeline(TrainingPipeline):
             for k in samples[0].keys()
         }
         # gather rewards across processes
-        gathered_rewards = {key: accelerator.gather(value) for key, value in samples["rewards"].items()}
-        gathered_rewards = {key: value.cpu().numpy() for key, value in gathered_rewards.items()}
+        # gathered_rewards = {key: accelerator.gather(value) for key, value in samples["rewards"].items()}
+        gathered_rewards = {key: value.cpu().numpy() for key, value in samples["rewards"].items()}
         # log rewards and images
-        accelerator.log(
-            {
-                "epoch": epoch,
-                **{f"reward_{key}": value.mean() for key, value in gathered_rewards.items() if '_strict_accuracy' not in key and '_accuracy' not in key},
-                "kl": samples["kl"].mean().cpu().numpy(),
-                "kl_abs": samples["kl"].abs().mean().cpu().numpy()
-            },
-            step=global_step,
-        )
+        # accelerator.log(
+        #     {
+        #         "epoch": epoch,
+        #         **{f"reward_{key}": value.mean() for key, value in gathered_rewards.items() if '_strict_accuracy' not in key and '_accuracy' not in key},
+        #         "kl": samples["kl"].mean().cpu().numpy(),
+        #         "kl_abs": samples["kl"].abs().mean().cpu().numpy()
+        #     },
+        #     step=global_step,
+        # )
         advantages = (gathered_rewards['avg'] - gathered_rewards['avg'].mean()) / (gathered_rewards['avg'].std() + 1e-4)
         advantages = torch.as_tensor(advantages)
-        samples["advantages"] = (
-            advantages.reshape(accelerator.num_processes, -1, advantages.shape[-1])[accelerator.process_index]
-            .to(accelerator.device)
-        )
+        # samples["advantages"] = (
+        #     advantages.reshape(accelerator.num_processes, -1, advantages.shape[-1])[accelerator.process_index]
+        #     .to(accelerator.device)
+        # )
+        samples["advantages"] = advantages.to(self.device)
         # del samples["rewards"]
         # del samples["prompt_ids"]
 
@@ -980,7 +1088,7 @@ class RLPipeline(TrainingPipeline):
         
         return total_loss, metrics
 
-    def train_one_step(self, training_batch: TrainingBatch, accelerator: Accelerator, optimizer: torch.optim.Optimizer, ema: EMA, global_step: int, train_timesteps: list[int], train_neg_prompt_embeds: torch.Tensor) -> TrainingBatch:
+    def train_one_step(self, samples: dict[str, torch.Tensor], optimizer: torch.optim.Optimizer, global_step: int, train_timesteps: list[int], train_neg_prompt_embeds: torch.Tensor) -> TrainingBatch:
         """
         Train one step using GRPO algorithm.
 
@@ -1004,23 +1112,22 @@ class RLPipeline(TrainingPipeline):
          
          
          # Shuffle  Samples for training, assuming samples is of the form as in FlowGRPO code
-        samples = self.collect_trajectories(training_batch) # Assuming the advantage and reward calculation is already done and is present in samples.
         total_batch_size, num_timesteps = samples["timesteps"].shape
         assert num_timesteps == self.training_args.rl_args.num_steps
 
-        perm = torch.randperm(total_batch_size, device=accelerator.device) # Shuffle samples along batch dimension
+        perm = torch.randperm(total_batch_size, device=self.device) # Shuffle samples along batch dimension
         samples = {k: v[perm] for k, v in samples.items()}
         
         perms = torch.stack(
                 [
                     # torch.randperm(num_timesteps, device=accelerator.device)
-                    torch.arange(num_timesteps, device=accelerator.device)
+                    torch.arange(num_timesteps, device=self.device)
                     for _ in range(total_batch_size)
                 ]
             )  # shuffle along time dimension independently for each sample
         for key in ["timesteps", "latents", "next_latents", "log_probs"]:
                 samples[key] = samples[key][
-                    torch.arange(total_batch_size, device=accelerator.device)[:, None],
+                    torch.arange(total_batch_size, device=self.device)[:, None],
                     perms,
                 ]
         micoe_batch = total_batch_size // (self.training_args.rl_args.sample_num_batches_per_epoch * self.training_args.rl_args.sample_time_per_prompt) # Change this according to RLargs config
@@ -1040,11 +1147,11 @@ class RLPipeline(TrainingPipeline):
         info = defaultdict(list)
         for i, sample in tqdm(
                 list(enumerate(samples_batched)),
-                desc=f"Epoch {epoch}.{inner_epoch}: training", # Change this according to how for loops are in workflow
+                # desc=f"Epoch {epoch}.{inner_epoch}: training", # Change this according to how for loops are in workflow
                 position=0,
-                disable=not accelerator.is_local_main_process,
+                # disable=not accelerator.is_local_main_process,
             ):
-            if config.train.cfg:
+            if self.training_args.cfg:
                     # concat negative prompts to sample prompts to avoid two forward passes
                     embeds = sample["prompt_embeds"]
                     negative_embeds = train_neg_prompt_embeds[:len(sample["prompt_embeds"])]
@@ -1056,21 +1163,21 @@ class RLPipeline(TrainingPipeline):
                     desc="Timestep",
                     position=1,
                     leave=False,
-                    disable=not accelerator.is_local_main_process,
+                    # disable=not accelerator.is_local_main_process,
                 ):
-                    with accelerator.accumulate(self.transformer): # Review this line is it really self.transformer or self.get_module("transformer")?
-                        with autocast():
-                            prev_sample, log_prob, prev_sample_mean, std_dev_t, dt = _compute_log_prob_for_timestep(transformer, pipeline, sample, j, embeds, negative_embeds, config) # Review this line
-                            if self.training_args.rl_args.kl_beta > 0:
-                                with torch.no_grad():
-                                    with transformer.module.disable_adapter(): # Review this as well.
-                                        prev_sample_ref, log_prob_ref, prev_sample_mean_ref, std_dev_t_ref, dt_ref = _compute_log_prob_for_timestep(transformer, pipeline, sample, j, embeds, negative_embeds, config) # Review this line check for input parameters
+                    # with accelerator.accumulate(self.transformer): # Review this line is it really self.transformer or self.get_module("transformer")?
+                        # with autocast():
+                        prev_sample, log_prob, prev_sample_mean, std_dev_t, dt = self._compute_log_prob_for_timestep(transformer, pipeline, sample, j, embeds, negative_embeds, config) # Review this line
+                        if self.training_args.rl_args.kl_beta > 0:
+                            with torch.no_grad():
+                                with self.transformer.disable_adapter(): # Review this as well.
+                                    prev_sample_ref, log_prob_ref, prev_sample_mean_ref, std_dev_t_ref, dt_ref = self._compute_log_prob_for_timestep(transformer, pipeline, sample, j, embeds, negative_embeds, config) # Review this line check for input parameters
 
                         # grpo logic
                         advantages = torch.clamp(
                             sample["advantages"][:, j],
-                            -config.train.adv_clip_max,
-                            config.train.adv_clip_max,
+                            -self.training_args.rl_args.adv_clip_max,
+                            self.training_args.rl_args.adv_clip_max,
                         )
                         ratio = torch.exp(log_prob - sample["log_probs"][:, j])
                         unclipped_loss = -advantages * ratio
@@ -1106,29 +1213,34 @@ class RLPipeline(TrainingPipeline):
                         info["loss"].append(loss)
 
                         # backward pass
-                        accelerator.backward(loss)
+                        # accelerator.backward(loss)
+                        loss.backward()
                         
-                        if accelerator.sync_gradients:
-                            accelerator.clip_grad_norm_(
-                                transformer.parameters(), self.training_args.max_grad_norm # Review this line
-                            )
+                        # if accelerator.sync_gradients:
+                        #     accelerator.clip_grad_norm_(
+                        #         transformer.parameters(), self.training_args.max_grad_norm # Review this line
+                        #     )
+                        torch.nn.utils.clip_grad_norm_(
+                            self.transformer.parameters(), self.training_args.max_grad_norm
+            )
                         optimizer.step()
                         optimizer.zero_grad()
+                        info = {k: torch.mean(torch.stack(v)).item() for k, v in info.items()}
 
                     # Checks if the accelerator has performed an optimization step behind the scenes
-                    if accelerator.sync_gradients:
-                        # assert (j == train_timesteps[-1]) and (
-                        #     i + 1
-                        # ) % config.train.gradient_accumulation_steps == 0
-                        # log training-related stuff
-                        info = {k: torch.mean(torch.stack(v)) for k, v in info.items()}
-                        info = accelerator.reduce(info, reduction="mean")
-                        info.update({"epoch": epoch, "inner_epoch": inner_epoch})
-                        accelerator.log(info, step=global_step)
-                        global_step += 1
-                        info = defaultdict(list)
-            if config.train.ema:
-                ema.step(transformer_trainable_parameters, global_step)
+                    # if accelerator.sync_gradients:
+                    #     # assert (j == train_timesteps[-1]) and (
+                    #     #     i + 1
+                    #     # ) % config.train.gradient_accumulation_steps == 0
+                    #     # log training-related stuff
+                    #     info = {k: torch.mean(torch.stack(v)) for k, v in info.items()}
+                    #     info = accelerator.reduce(info, reduction="mean")
+                    #     info.update({"epoch": epoch, "inner_epoch": inner_epoch})
+                    #     accelerator.log(info, step=global_step)
+                    #     global_step += 1
+                    #     info = defaultdict(list)
+            # if config.train.ema:
+            #     ema.step(transformer_trainable_parameters, global_step)
 
     def set_trainable(self) -> None:
         """Set which parameters should be trainable."""
@@ -1152,33 +1264,33 @@ class RLPipeline(TrainingPipeline):
         # number of timesteps within each trajectory to train on
         num_train_timesteps = int(self.training_args.rl_args.num_steps * self.training_args.rl_args.timestep_fraction)
 
-        accelerator_config = ProjectConfiguration(
-            project_dir=os.path.join(config.logdir, config.run_name),
-            automatic_checkpoint_naming=True,
-            total_limit=config.num_checkpoint_limit,
-        )
+        # accelerator_config = ProjectConfiguration(
+        #     project_dir=os.path.join(config.logdir, config.run_name),
+        #     automatic_checkpoint_naming=True,
+        #     total_limit=config.num_checkpoint_limit,
+        # )
 
         train_timesteps = [step_index  for step_index in range(num_train_timesteps)]
         gradient_accumulation_steps = self.training_args.gradient_accumulation_steps * num_train_timesteps
 
-        accelerator = Accelerator(
-            log_with="wandb",
-            mixed_precision=config.mixed_precision,
-            project_config=accelerator_config,
-            # we always accumulate gradients across timesteps; we want config.train.gradient_accumulation_steps to be the
-            # number of *samples* we accumulate across, so we need to multiply by the number of training timesteps to get
-            # the total number of optimizer steps to accumulate across.
-            gradient_accumulation_steps=gradient_accumulation_steps,
-        )
+        # accelerator = Accelerator(
+        #     log_with="wandb",
+        #     mixed_precision=config.mixed_precision,
+        #     project_config=accelerator_config,
+        #     # we always accumulate gradients across timesteps; we want config.train.gradient_accumulation_steps to be the
+        #     # number of *samples* we accumulate across, so we need to multiply by the number of training timesteps to get
+        #     # the total number of optimizer steps to accumulate across.
+        #     gradient_accumulation_steps=gradient_accumulation_steps,
+        # )
 
-        wandb_project_name = "wan_flow_grpo"
-        if accelerator.is_main_process:
-            accelerator.init_trackers(
-                project_name=wandb_project_name,
-                config=config.to_dict(),
-                init_kwargs={"wandb": {"name": config.run_name}},
-            )
-        logger.info(f"\n{config}")
+        # wandb_project_name = "wan_flow_grpo"
+        # if accelerator.is_main_process:
+        #     accelerator.init_trackers(
+        #         project_name=wandb_project_name,
+        #         config=config.to_dict(),
+        #         init_kwargs={"wandb": {"name": config.run_name}},
+        #     )
+        # logger.info(f"\n{config}")
 
         # set seed (device_specific is very important to get different prompts on different devices)
         set_seed(self.training_args.seed, device_specific=True)
@@ -1201,7 +1313,7 @@ class RLPipeline(TrainingPipeline):
         # make the progress bar nicer
         pipeline.set_progress_bar_config(
             position=1,
-            disable=not accelerator.is_local_main_process,
+            # disable=not accelerator.is_local_main_process,
             leave=False,
             desc="Timestep",
             dynamic_ncols=True,
@@ -1210,19 +1322,19 @@ class RLPipeline(TrainingPipeline):
         # For mixed precision training we cast all non-trainable weigths (vae, non-lora text_encoder and non-lora transformer) to half-precision
         # as these weights are only used for inference, keeping weights in full precision is not required.
         inference_dtype = torch.float32
-        if accelerator.mixed_precision == "fp16":
+        if self.training_args.mixed_precision == "fp16":
             inference_dtype = torch.float16
-        elif accelerator.mixed_precision == "bf16":
+        elif self.training_args.mixed_precision == "bf16":
             inference_dtype = torch.bfloat16
 
         # Move transformer, vae and text_encoder to device and cast to inference_dtype
-        pipeline.vae.to(accelerator.device, dtype=torch.float32)
-        pipeline.text_encoder.to(accelerator.device, dtype=inference_dtype)
+        pipeline.vae.to(self.device, dtype=torch.float32)
+        pipeline.text_encoder.to(self.device, dtype=inference_dtype)
         # pipeline.scheduler.to(accelerator.device, dtype=inference_dtype)
 
         if self.training_args.lora_training:
             # pipeline.transformer.to(accelerator.device, dtype=inference_dtype)
-            pipeline.transformer.to(accelerator.device)
+            pipeline.transformer.to(self.device)
             
             # pipeline.transformer.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
 
@@ -1255,11 +1367,11 @@ class RLPipeline(TrainingPipeline):
         transformer.enable_gradient_checkpointing()
         transformer_trainable_parameters = list(filter(lambda p: p.requires_grad, transformer.parameters()))
         # 平均影响到之前的20*8=160个step
-        ema = EMAModuleWrapper(transformer_trainable_parameters, decay=0.9, update_step_interval=8, device=accelerator.device)
+        # ema = EMAModuleWrapper(transformer_trainable_parameters, decay=0.9, update_step_interval=8, device=accelerator.device)
         
         # Enable TF32 for faster training on Ampere GPUs,
         # cf https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices
-        if config.allow_tf32:
+        if self.training_args.allow_tf32:
             torch.backends.cuda.matmul.allow_tf32 = True
 
             
@@ -1268,142 +1380,97 @@ class RLPipeline(TrainingPipeline):
         optimizer = optimizer_cls(
             transformer_trainable_parameters,
             lr=self.training_args.learning_rate,
-            betas=(config.train.adam_beta1, config.train.adam_beta2),
+            betas=tuple(float(b) for b in self.training_args.betas.split(",")),
             weight_decay=self.training_args.weight_decay,
-            eps=config.train.adam_epsilon,
+            eps=self.training_args.adam_epsilon,
         )
 
         # prepare prompt and reward fn
-        reward_fn = getattr(flow_grpo.rewards, 'multi_score')(accelerator.device, config.reward_fn)
-        eval_reward_fn = getattr(flow_grpo.rewards, 'multi_score')(accelerator.device, config.reward_fn)
-
-        if config.prompt_fn == "general_ocr":
-            train_dataset = TextPromptDataset(config.dataset, 'train')
-            test_dataset = TextPromptDataset(config.dataset, 'test')
-
-            # 创建无限循环的DataLoader
-            train_sampler = DistributedKRepeatSampler( 
-                dataset=train_dataset,
-                batch_size=config.sample.train_batch_size,
-                k=config.sample.num_image_per_prompt,  # 你的k值
-                num_replicas=accelerator.num_processes,
-                rank=accelerator.process_index,
-                seed=42
-            )
-
-            # 创建DataLoader，注意这里不需要shuffle，由Sampler控制
-            train_dataloader = DataLoader(
-                train_dataset,
-                batch_sampler=train_sampler,
-                num_workers=1,
-                collate_fn=TextPromptDataset.collate_fn,
-                # persistent_workers=True
-            )
-            # 创建正常的DataLoader
-            test_dataloader = DataLoader(
-                test_dataset,
-                batch_size=config.sample.test_batch_size,
-                collate_fn=TextPromptDataset.collate_fn,
-                shuffle=False,
-                num_workers=8,
-            )
-        
-        elif config.prompt_fn == "geneval":
-            train_dataset = GenevalPromptDataset(config.dataset, 'train')
-            test_dataset = GenevalPromptDataset(config.dataset, 'test')
-            # 创建无限循环的DataLoader
-            train_sampler = DistributedKRepeatSampler( 
-                dataset=train_dataset,
-                batch_size=config.sample.train_batch_size,
-                k=config.sample.num_image_per_prompt,  # 你的k值
-                num_replicas=accelerator.num_processes,
-                rank=accelerator.process_index,
-                seed=42
-            )
-
-            # 创建DataLoader，注意这里不需要shuffle，由Sampler控制
-            train_dataloader = DataLoader(
-                train_dataset,
-                batch_sampler=train_sampler,
-                num_workers=1,
-                collate_fn=GenevalPromptDataset.collate_fn,
-                # persistent_workers=True
-            )
-            # 创建正常的DataLoader
-            test_dataloader = DataLoader(
-                test_dataset,
-                batch_size=config.sample.test_batch_size,
-                collate_fn=GenevalPromptDataset.collate_fn,
-                shuffle=False,
-                num_workers=8,
-            )
-        else:
-            raise NotImplementedError("Only general_ocr is supported with dataset")
+        # reward_fn = getattr(flow_grpo.rewards, 'multi_score')(accelerator.device, config.reward_fn)
+        # eval_reward_fn = getattr(flow_grpo.rewards, 'multi_score')(accelerator.device, config.reward_fn)
 
 
-        neg_prompt_embed = compute_text_embeddings([""], text_encoders, tokenizers, max_sequence_length=512, device=accelerator.device)
+        neg_prompt_embed = self.compute_text_embeddings([""], text_encoders, tokenizers, max_sequence_length=512, device=accelerator.device)
 
-        sample_neg_prompt_embeds = neg_prompt_embed.repeat(config.sample.train_batch_size, 1, 1)
-        train_neg_prompt_embeds = neg_prompt_embed.repeat(config.train.batch_size * config.sample.sample_time_per_prompt, 1, 1)
+        sample_neg_prompt_embeds = neg_prompt_embed.repeat(self.training_args.rl_args.sample_train_batch_size, 1, 1)
+        train_neg_prompt_embeds = neg_prompt_embed.repeat(self.training_args.train_batch_size * self.training_args.rl_args.sample_time_per_prompt, 1, 1)
 
-        if config.sample.num_image_per_prompt * config.sample.sample_time_per_prompt == 1:
-            config.per_prompt_stat_tracking = False
-        # initialize stat tracker
-        if config.per_prompt_stat_tracking:
-            stat_tracker = PerPromptStatTracker(config.sample.global_std)
+        # if config.sample.num_image_per_prompt * config.sample.sample_time_per_prompt == 1:
+        #     config.per_prompt_stat_tracking = False
+        # # initialize stat tracker
+        # if config.per_prompt_stat_tracking:
+        #     stat_tracker = PerPromptStatTracker(config.sample.global_std)
 
         # for some reason, autocast is necessary for non-lora training but for lora training it isn't necessary and it uses
         # more memory
-        autocast = contextlib.nullcontext if config.use_lora else accelerator.autocast
+        # autocast = contextlib.nullcontext if self.training_args.lora_training else accelerator.autocast
         # autocast = accelerator.autocast
 
         # Prepare everything with our `accelerator`.
-        transformer, optimizer, train_dataloader, test_dataloader = accelerator.prepare(transformer, optimizer, train_dataloader, test_dataloader)
+        # transformer, optimizer, train_dataloader, test_dataloader = accelerator.prepare(transformer, optimizer, train_dataloader, test_dataloader)
 
         # executor to perform callbacks asynchronously. this is beneficial for the llava callbacks which makes a request to a
         # remote server running llava inference.
         executor = futures.ThreadPoolExecutor(max_workers=8)
 
         # Train!
-        samples_per_epoch = (
-            config.sample.train_batch_size
-            * accelerator.num_processes
-            * config.sample.num_batches_per_epoch
-        )
-        total_train_batch_size = (
-            config.train.batch_size
-            * accelerator.num_processes
-            * config.train.gradient_accumulation_steps
-        )
+        # samples_per_epoch = (
+        #     config.sample.train_batch_size
+        #     * accelerator.num_processes
+        #     * config.sample.num_batches_per_epoch
+        # )
+        # total_train_batch_size = (
+        #     config.train.batch_size
+        #     * accelerator.num_processes
+        #     * config.train.gradient_accumulation_steps
+        # )
+        # samples_per_epoch = (
+        #     self.training_args.rl_args.sample_train_batch_size
+        #     * 1
+        #     * config.sample.num_batches_per_epoch
+        # )
+        # total_train_batch_size = (
+        #     self.training_args.train_batch_size
+        #     * 1
+        #     * config.train.gradient_accumulation_steps
+        # )
 
-        logger.info("***** Running training *****")
-        logger.info(f"  Num Epochs = {config.num_epochs}")
-        logger.info(f"  Sample batch size per device = {config.sample.train_batch_size}")
-        logger.info(f"  Train batch size per device = {config.train.batch_size}")
-        logger.info(
-            f"  Gradient Accumulation steps = {config.train.gradient_accumulation_steps}"
-        )
-        logger.info("")
-        logger.info(f"  Total number of samples per epoch = {samples_per_epoch}")
-        logger.info(
-            f"  Total train batch size (w. parallel, distributed & accumulation) = {total_train_batch_size}"
-        )
-        logger.info(
-            f"  Number of gradient updates per inner epoch = {samples_per_epoch // total_train_batch_size}"
-        )
-        logger.info(f"  Number of inner epochs = {config.train.num_inner_epochs}")
+        # logger.info("***** Running training *****")
+        # logger.info(f"  Num Epochs = {config.num_epochs}")
+        # logger.info(f"  Sample batch size per device = {config.sample.train_batch_size}")
+        # logger.info(f"  Train batch size per device = {config.train.batch_size}")
+        # logger.info(
+        #     f"  Gradient Accumulation steps = {config.train.gradient_accumulation_steps}"
+        # )
+        # logger.info("")
+        # logger.info(f"  Total number of samples per epoch = {samples_per_epoch}")
+        # logger.info(
+        #     f"  Total train batch size (w. parallel, distributed & accumulation) = {total_train_batch_size}"
+        # )
+        # logger.info(
+        #     f"  Number of gradient updates per inner epoch = {samples_per_epoch // total_train_batch_size}"
+        # )
+        # logger.info(f"  Number of inner epochs = {config.train.num_inner_epochs}")
         # assert config.sample.train_batch_size >= config.train.batch_size
         # assert config.sample.train_batch_size % config.train.batch_size == 0
         # assert samples_per_epoch % total_train_batch_size == 0
 
-        if config.resume_from:
-            logger.info(f"Resuming from {config.resume_from}")
-            accelerator.load_state(config.resume_from)
-            first_epoch = int(config.resume_from.split("_")[-1]) + 1
-        else:
-            first_epoch = 0
+        # if config.resume_from:
+        #     logger.info(f"Resuming from {config.resume_from}")
+        #     accelerator.load_state(config.resume_from)
+        #     first_epoch = int(config.resume_from.split("_")[-1]) + 1
+        # else:
+        #     first_epoch = 0
         global_step = 0
-        train_iter = iter(train_dataloader)
+        first_epoch = 0
+        train_iter = iter(self.train_dataloader)
+        for epoch in range(first_epoch, self.training_args.num_epochs):
+            # Sampling
+            samples = self.collect_trajectories(text_encoders, tokenizers, sample_neg_prompt_embeds)
+            # Training
+            for inner_epoch in range(self.training_args.rl_args.num_inner_epochs):
+                self.train_one_step(samples, optimizer, global_step, train_timesteps, train_neg_prompt_embeds)
+
 
 
 def create_rl_pipeline(
