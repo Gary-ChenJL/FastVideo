@@ -170,5 +170,5 @@ def build_rl_prompt_dataloader(
         num_workers=test_num_workers,
     )
     
-    return train_dataloader, test_dataloader, train_dataset, test_dataset
+    return train_dataloader, test_dataloader, train_dataset, test_dataset, train_sampler
 

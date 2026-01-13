@@ -128,7 +128,7 @@ class RLPipeline(TrainingPipeline):
         logger.info("  num_image_per_prompt (k): %s", rl_num_image_per_prompt)
         
         # Build RL prompt dataloader
-        train_dataloader, test_dataloader, train_dataset, test_dataset = build_rl_prompt_dataloader(
+        train_dataloader, test_dataloader, train_dataset, test_dataset, train_sampler = build_rl_prompt_dataloader(
             dataset_path=rl_dataset_path,
             dataset_type=rl_dataset_type,
             split='train',
@@ -145,6 +145,7 @@ class RLPipeline(TrainingPipeline):
         self.train_dataloader = train_dataloader
         self.test_dataloader = test_dataloader
         self.train_dataset = train_dataset
+        self.train_sampler = train_sampler
         self.train_loader_iter = iter(self.train_dataloader)
         self.current_epoch = 0
         
@@ -651,7 +652,7 @@ class RLPipeline(TrainingPipeline):
         training_args.inference_mode = False
         self.transformer.train()    
 
-    def collect_trajectories(self, epoch, text_encoders, tokenizers, sample_neg_prompt_embeds, train_iter) -> TrainingBatch:
+    def collect_trajectories(self, epoch, text_encoders, tokenizers, sample_neg_prompt_embeds) -> TrainingBatch:
         """
         Collect on-policy trajectories by generating videos with log probabilities.
         
@@ -685,8 +686,8 @@ class RLPipeline(TrainingPipeline):
             # disable=not accelerator.is_local_main_process,
             position=0,
         ):
-            train_sampler.set_epoch(epoch * self.training_args.rl_args.sample_num_batches_per_epoch + i)
-            prompts, prompt_metadata = next(train_iter)
+            self.train_sampler.set_epoch(epoch * self.training_args.rl_args.sample_num_batches_per_epoch + i)
+            prompts, prompt_metadata = next(self.train_loader_iter)
 
             prompt_embeds = self.compute_text_embeddings(
                 prompts, 
@@ -1363,7 +1364,7 @@ class RLPipeline(TrainingPipeline):
         
         return total_loss, metrics
 
-    def train_one_step(self, text_encoders, tokenizers, sample_neg_prompt_embeds, optimizer: torch.optim.Optimizer, global_step: int, train_timesteps: list[int], train_neg_prompt_embeds: torch.Tensor, train_iter: Iterator[tuple[list[str], dict[str, Any]]], epoch: int) -> TrainingBatch:
+    def train_one_step(self, text_encoders, tokenizers, sample_neg_prompt_embeds, optimizer: torch.optim.Optimizer, global_step: int, train_timesteps: list[int], train_neg_prompt_embeds: torch.Tensor, epoch: int) -> TrainingBatch:
         """
         Train one step using GRPO algorithm.
 
@@ -1384,7 +1385,7 @@ class RLPipeline(TrainingPipeline):
         # if training_batch.current_timestep < self.training_args.rl_args.rl_warmup_steps:
         #     logger.debug("In warmup phase, using standard SFT training")
         #     return super().train_one_step(training_batch)
-        samples = self.collect_trajectories(epoch, text_encoders, tokenizers, sample_neg_prompt_embeds, train_iter)
+        samples = self.collect_trajectories(epoch, text_encoders, tokenizers, sample_neg_prompt_embeds)
          
          # Shuffle  Samples for training, assuming samples is of the form as in FlowGRPO code
         total_batch_size, num_timesteps = samples["timesteps"].shape
@@ -1538,138 +1539,16 @@ class RLPipeline(TrainingPipeline):
         
         # number of timesteps within each trajectory to train on
         num_train_timesteps = int(self.training_args.rl_args.num_steps * self.training_args.rl_args.timestep_fraction)
-
-        # accelerator_config = ProjectConfiguration(
-        #     project_dir=os.path.join(config.logdir, config.run_name),
-        #     automatic_checkpoint_naming=True,
-        #     total_limit=config.num_checkpoint_limit,
-        # )
-
         train_timesteps = [step_index  for step_index in range(num_train_timesteps)]
-        
-
-        # accelerator = Accelerator(
-        #     log_with="wandb",
-        #     mixed_precision=config.mixed_precision,
-        #     project_config=accelerator_config,
-        #     # we always accumulate gradients across timesteps; we want config.train.gradient_accumulation_steps to be the
-        #     # number of *samples* we accumulate across, so we need to multiply by the number of training timesteps to get
-        #     # the total number of optimizer steps to accumulate across.
-        #     gradient_accumulation_steps=gradient_accumulation_steps,
-        # )
-
-        # wandb_project_name = "wan_flow_grpo"
-        # if accelerator.is_main_process:
-        #     accelerator.init_trackers(
-        #         project_name=wandb_project_name,
-        #         config=config.to_dict(),
-        #         init_kwargs={"wandb": {"name": config.run_name}},
-        #     )
-        # logger.info(f"\n{config}")
-
-        # set seed (device_specific is very important to get different prompts on different devices)
-        # set_seed(self.training_args.seed, device_specific=True)
-        
-
         text_encoders = [self.get_module("text_encoder")]
         tokenizers = [self.get_module("tokenizer")]
-
-        # # disable safety checker
-        # pipeline.safety_checker = None
-        # # make the progress bar nicer
-        # pipeline.set_progress_bar_config(
-        #     position=1,
-        #     # disable=not accelerator.is_local_main_process,
-        #     leave=False,
-        #     desc="Timestep",
-        #     dynamic_ncols=True,
-        # )
-
-        # For mixed precision training we cast all non-trainable weigths (vae, non-lora text_encoder and non-lora transformer) to half-precision
-        # as these weights are only used for inference, keeping weights in full precision is not required.
-      
-       
-
-        # prepare prompt and reward fn
-        # reward_fn = getattr(flow_grpo.rewards, 'multi_score')(accelerator.device, config.reward_fn)
-        # eval_reward_fn = getattr(flow_grpo.rewards, 'multi_score')(accelerator.device, config.reward_fn)
-
-
         neg_prompt_embed = self.compute_text_embeddings([""], text_encoders, tokenizers, max_sequence_length=512, device=self.device)
-
         sample_neg_prompt_embeds = neg_prompt_embed.repeat(self.training_args.rl_args.sample_train_batch_size, 1, 1)
         train_neg_prompt_embeds = neg_prompt_embed.repeat(self.training_args.train_batch_size * self.training_args.rl_args.sample_time_per_prompt, 1, 1)
-
-        # if config.sample.num_image_per_prompt * config.sample.sample_time_per_prompt == 1:
-        #     config.per_prompt_stat_tracking = False
-        # # initialize stat tracker
-        # if config.per_prompt_stat_tracking:
-        #     stat_tracker = PerPromptStatTracker(config.sample.global_std)
-
-        # for some reason, autocast is necessary for non-lora training but for lora training it isn't necessary and it uses
-        # more memory
-        # autocast = contextlib.nullcontext if self.training_args.lora_training else accelerator.autocast
-        # autocast = accelerator.autocast
-
-        # Prepare everything with our `accelerator`.
-        # transformer, optimizer, train_dataloader, test_dataloader = accelerator.prepare(transformer, optimizer, train_dataloader, test_dataloader)
-
-        # executor to perform callbacks asynchronously. this is beneficial for the llava callbacks which makes a request to a
-        # remote server running llava inference.
-
-        # Train!
-        # samples_per_epoch = (
-        #     config.sample.train_batch_size
-        #     * accelerator.num_processes
-        #     * config.sample.num_batches_per_epoch
-        # )
-        # total_train_batch_size = (
-        #     config.train.batch_size
-        #     * accelerator.num_processes
-        #     * config.train.gradient_accumulation_steps
-        # )
-        # samples_per_epoch = (
-        #     self.training_args.rl_args.sample_train_batch_size
-        #     * 1
-        #     * config.sample.num_batches_per_epoch
-        # )
-        # total_train_batch_size = (
-        #     self.training_args.train_batch_size
-        #     * 1
-        #     * config.train.gradient_accumulation_steps
-        # )
-
-        # logger.info("***** Running training *****")
-        # logger.info(f"  Num Epochs = {config.num_epochs}")
-        # logger.info(f"  Sample batch size per device = {config.sample.train_batch_size}")
-        # logger.info(f"  Train batch size per device = {config.train.batch_size}")
-        # logger.info(
-        #     f"  Gradient Accumulation steps = {config.train.gradient_accumulation_steps}"
-        # )
-        # logger.info("")
-        # logger.info(f"  Total number of samples per epoch = {samples_per_epoch}")
-        # logger.info(
-        #     f"  Total train batch size (w. parallel, distributed & accumulation) = {total_train_batch_size}"
-        # )
-        # logger.info(
-        #     f"  Number of gradient updates per inner epoch = {samples_per_epoch // total_train_batch_size}"
-        # )
-        # logger.info(f"  Number of inner epochs = {config.train.num_inner_epochs}")
-        # assert config.sample.train_batch_size >= config.train.batch_size
-        # assert config.sample.train_batch_size % config.train.batch_size == 0
-        # assert samples_per_epoch % total_train_batch_size == 0
-
-        # if config.resume_from:
-        #     logger.info(f"Resuming from {config.resume_from}")
-        #     accelerator.load_state(config.resume_from)
-        #     first_epoch = int(config.resume_from.split("_")[-1]) + 1
-        # else:
-        #     first_epoch = 0
         global_step = 0
         first_epoch = 0
-        train_iter = iter(self.train_dataloader)
         for epoch in range(first_epoch, self.training_args.num_epochs):
-            self.train_one_step(text_encoders, tokenizers, sample_neg_prompt_embeds, self.optimizer, global_step, train_timesteps, train_neg_prompt_embeds, train_iter, epoch)
+            self.train_one_step(text_encoders, tokenizers, sample_neg_prompt_embeds, self.optimizer, global_step, train_timesteps, train_neg_prompt_embeds, epoch)
 
 
 
