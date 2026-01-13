@@ -412,102 +412,6 @@ class RLPipeline(TrainingPipeline):
             prompt_embeds = prompt_embeds.to(device)
             # pooled_prompt_embeds = pooled_prompt_embeds.to(device)
         return prompt_embeds
-
-    def eval(self, pipeline, test_dataloader, text_encoders, tokenizers, reward_fn, executor):
-        
-        neg_prompt_embed = self.compute_text_embeddings([""], text_encoders, tokenizers, max_sequence_length=512, device=self.device)
-
-        sample_neg_prompt_embeds = neg_prompt_embed.repeat(self.training_args.rl_args.sample_test_batch_size, 1, 1)
-
-        all_rewards = defaultdict(list)
-        for test_batch in tqdm(
-                test_dataloader,
-                desc="Eval: ",
-                # disable=not accelerator.is_local_main_process,
-                position=0,
-            ):
-            prompts, prompt_metadata = test_batch
-            prompt_embeds = self.compute_text_embeddings(
-                prompts, 
-                text_encoders, 
-                tokenizers, 
-                max_sequence_length=512,
-                device=self.device
-            )
-            # 最后一个batch可能不够batch_size
-            if len(prompt_embeds)<len(sample_neg_prompt_embeds):
-                sample_neg_prompt_embeds = sample_neg_prompt_embeds[:len(prompt_embeds)]
-
-            # with autocast():
-            with torch.no_grad():
-                videos, latents, log_probs, _ = wan_pipeline_with_logprob(
-                    pipeline,
-                    prompt_embeds=prompt_embeds,
-                    negative_prompt_embeds=sample_neg_prompt_embeds,
-                    num_inference_steps=self.training_args.rl_args.eval_num_steps,
-                    guidance_scale=self.training_args.rl_args.guidance_scale,
-                    output_type="pt",
-                    return_dict=False,
-                    num_frames=self.training_args.num_frames,
-                    height=self.training_args.num_height,
-                    width=self.training_args.num_width, 
-                    determistic=True,
-                )
-            rewards = executor.submit(reward_fn, videos, prompts, prompt_metadata, only_strict=False)
-            # yield to to make sure reward computation starts
-            time.sleep(0)
-            rewards, reward_metadata = rewards.result()
-
-            for key, value in rewards.items():
-                rewards_np = torch.as_tensor(value, device=self.device).cpu().numpy()
-                all_rewards[key].append(rewards_np)
-        last_batch_videos_np = videos.cpu().numpy()
-        last_batch_prompt_ids = tokenizers[0](
-            prompts,
-            padding="max_length",
-            max_length=512, 
-            truncation=True,
-            return_tensors="pt",
-        ).input_ids.to(self.device)
-
-        last_batch_prompts = pipeline.tokenizer.batch_decode(
-            last_batch_prompt_ids.cpu().numpy(), skip_special_tokens=True
-        )
-        last_batch_rewards = {}
-        for key, value in rewards.items():
-            last_batch_rewards[key] = torch.as_tensor(value, device=self.device).cpu().numpy()
-
-        all_rewards = {key: np.concatenate(value) for key, value in all_rewards.items()}
-    
-        # if accelerator.is_main_process:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            num_samples = min(15, len(last_batch_videos_np))
-            sample_indices = range(num_samples)
-            for idx, index in enumerate(sample_indices):
-                video = last_batch_videos_np[index].transpose(0, 2, 3, 1)
-                frames = [img for img in video]
-                frames = [(frame * 255).astype(np.uint8) for frame in frames]
-                imageio.mimsave(os.path.join(tmpdir, f"{idx}.mp4"), frames, fps=8, codec="libx264", format='FFMPEG')
-
-            sampled_prompts = [last_batch_prompts[index] for index in sample_indices]
-            sampled_rewards = [{k: last_batch_rewards[k][index] for k in last_batch_rewards} for index in sample_indices]
-            for key, value in all_rewards.items():
-                print(key, value.shape)
-            # accelerator.log(
-            #     {
-            #         "eval_images": [
-            #             wandb.Video(
-            #                 os.path.join(tmpdir, f"{idx}.mp4"),
-            #                 caption=f"{prompt:.1000} | " + " | ".join(f"{k}: {v:.2f}" for k, v in reward.items() if v != -10),
-            #                 format="mp4",
-            #                 fps=8 
-            #             )
-            #             for idx, (prompt, reward) in enumerate(zip(sampled_prompts, sampled_rewards))
-            #         ],
-            #         **{f"eval_reward_{key}": np.mean(value[value != -10]) for key, value in all_rewards.items()},
-            #     },
-            #     step=global_step,
-            # )
       
     @torch.no_grad()
     def _log_validation(self, transformer, training_args, global_step) -> None:
@@ -589,8 +493,9 @@ class RLPipeline(TrainingPipeline):
 
             # Check Reward Calculation
             
-            future_rewards = self.executor.submit(self.reward_fn, videos, prompts, prompt_metadata, only_strict=False)
-            rewards_dict, _ = future_rewards.result()
+            # future_rewards = self.executor.submit(self.reward_fn, videos, prompts, prompt_metadata, only_strict=False)
+            # rewards_dict, _ = future_rewards.result()
+            rewards_dict = self.reward_models.compute_rewards(videos, prompts, return_individual=True)
 
             # --- 5. Process Outputs ---
             # Store Rewards
@@ -599,7 +504,7 @@ class RLPipeline(TrainingPipeline):
 
             # Store Videos (Convert to numpy uint8)
             # Using the correct rearrange logic we discussed: b c t h w -> b t h w c
-            video_permuted = rearrange(videos, "b c t h w -> b t h w c")
+            video_permuted = videos.permute(0, 2, 3, 4, 1)
             
             for v_idx, video_tensor in enumerate(video_permuted):
                 video_np = (video_tensor.cpu().numpy() * 255).astype(np.uint8)
@@ -745,10 +650,11 @@ class RLPipeline(TrainingPipeline):
                 )  # (batch_size, num_steps)
 
                 # compute rewards asynchronously
-                rewards = executor.submit(reward_fn, videos, prompts, prompt_metadata, only_strict=True)
+                # rewards = executor.submit(reward_fn, videos, prompts, prompt_metadata, only_strict=True)
                 # images b, 3, 512, 512
                 # yield to to make sure reward computation starts
-                time.sleep(0)
+                # time.sleep(0)
+                rewards = self.reward_models.compute_rewards(videos, prompts, return_individual=True)
                 
                 samples.append(
                     {
@@ -773,7 +679,8 @@ class RLPipeline(TrainingPipeline):
         # disable=not accelerator.is_local_main_process,
         position=0,
     ):
-            rewards, reward_metadata = sample["rewards"].result()
+            # rewards, reward_metadata = sample["rewards"].result()
+            rewards = sample["rewards"]
             # accelerator.print(reward_metadata)
             sample["rewards"] = {
                 key: torch.as_tensor(value, device=self.device).float()
