@@ -10,9 +10,10 @@ Reference:
     Flow-GRPO: https://github.com/yifan123/flow_grpo
 """
 
+from tkinter import SEL_FIRST
 import torch
 import torch.nn as nn
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import math
 
@@ -40,7 +41,8 @@ from fastvideo.distributed import get_local_torch_device
 from fastvideo.dataset.rl_prompt_dataset import build_rl_prompt_dataloader
 from copy import deepcopy
 from collections.abc import Iterator
-
+from fastvideo.training.activation_checkpoint import apply_activation_checkpointing
+from fastvideo.utils import set_random_seed
 import contextlib
 import tqdm
 from collections import defaultdict
@@ -305,10 +307,105 @@ class RLPipeline(TrainingPipeline):
         logger.info("RL validation pipeline will be implemented based on task requirements")
         # Set validation_pipeline to None for now
         self.validation_pipeline = None
-    
+    def _get_t5_prompt_embeds(
+        self,
+    text_encoder,
+    tokenizer,
+    prompt: Union[str, List[str]] = None,
+    max_sequence_length: int = 226,
+    num_videos_per_prompt: int = 1,
+    device: Optional[torch.device] = None,
+    dtype: Optional[torch.dtype] = None,
+):
+
+        prompt = [prompt] if isinstance(prompt, str) else prompt
+        batch_size = len(prompt)
+
+        text_inputs = tokenizer(
+            prompt,
+            padding="max_length",
+            max_length=max_sequence_length,
+            truncation=True,
+            add_special_tokens=True,
+            return_attention_mask=True,
+            return_tensors="pt",
+        )
+        text_input_ids, mask = text_inputs.input_ids, text_inputs.attention_mask
+        seq_lens = mask.gt(0).sum(dim=1).long()
+
+        prompt_embeds = text_encoder(text_input_ids.to(device), mask.to(device)).last_hidden_state
+        prompt_embeds = prompt_embeds.to(dtype=dtype, device=device)
+        prompt_embeds = [u[:v] for u, v in zip(prompt_embeds, seq_lens)]
+        prompt_embeds = torch.stack(
+            [torch.cat([u, u.new_zeros(max_sequence_length - u.size(0), u.size(1))]) for u in prompt_embeds], dim=0
+        )
+
+        # duplicate text embeddings for each generation per prompt, using mps friendly method
+        _, seq_len, _ = prompt_embeds.shape
+        prompt_embeds = prompt_embeds.repeat(1, num_videos_per_prompt, 1)
+        prompt_embeds = prompt_embeds.view(batch_size * num_videos_per_prompt, seq_len, -1)
+
+        return prompt_embeds
+
+    def encode_prompt(
+        self,
+        text_encoder,
+        tokenizer,
+        prompt: Union[str, List[str]],
+        max_sequence_length: int = 226,
+        num_videos_per_prompt: int = 1,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+        ):
+        r"""
+        Encodes the prompt into text encoder hidden states.
+
+        Args:
+            prompt (`str` or `List[str]`, *optional*):
+                prompt to be encoded
+            negative_prompt (`str` or `List[str]`, *optional*):
+                The prompt or prompts not to guide the image generation. If not defined, one has to pass
+                `negative_prompt_embeds` instead. Ignored when not using guidance (i.e., ignored if `guidance_scale` is
+                less than `1`).
+            do_classifier_free_guidance (`bool`, *optional*, defaults to `True`):
+                Whether to use classifier free guidance or not.
+            num_videos_per_prompt (`int`, *optional*, defaults to 1):
+                Number of videos that should be generated per prompt. torch device to place the resulting embeddings on
+            prompt_embeds (`torch.Tensor`, *optional*):
+                Pre-generated text embeddings. Can be used to easily tweak text inputs, *e.g.* prompt weighting. If not
+                provided, text embeddings will be generated from `prompt` input argument.
+            negative_prompt_embeds (`torch.Tensor`, *optional*):
+                Pre-generated negative text embeddings. Can be used to easily tweak text inputs, *e.g.* prompt
+                weighting. If not provided, negative_prompt_embeds will be generated from `negative_prompt` input
+                argument.
+            device: (`torch.device`, *optional*):
+                torch device
+            dtype: (`torch.dtype`, *optional*):
+                torch dtype
+        """
+        device = text_encoder[0].device
+        dtype = text_encoder[0].dtype
+
+        prompt = [prompt] if isinstance(prompt, str) else prompt
+        if prompt is not None:
+            batch_size = len(prompt)
+        else:
+            batch_size = prompt_embeds.shape[0]
+
+        prompt_embeds = self._get_t5_prompt_embeds(
+            text_encoder=text_encoder[0],
+            tokenizer=tokenizer[0],
+            prompt=prompt,
+            max_sequence_length=max_sequence_length,
+            num_videos_per_prompt=num_videos_per_prompt,
+            device=device,
+            dtype=dtype,
+        )
+
+        return prompt_embeds
     def compute_text_embeddings(self, prompt, text_encoders, tokenizers, max_sequence_length, device):
         with torch.no_grad():
-            prompt_embeds = encode_prompt(
+            prompt_embeds = self.encode_prompt(
                 text_encoders, tokenizers, prompt, max_sequence_length
             )
             prompt_embeds = prompt_embeds.to(device)
@@ -411,10 +508,150 @@ class RLPipeline(TrainingPipeline):
             #     step=global_step,
             # )
       
+    @torch.no_grad()
+    def _log_validation(self, transformer, training_args, global_step) -> None:
+        """
+        Generate validation videos, calculate rewards, and log to tracker.
+        (Single GPU Version)
+        """
+        # --- 1. Setup & Config ---
+        training_args.inference_mode = True
+        training_args.dit_cpu_offload = False
+        
+        if not training_args.log_validation:
+            return
+        if self.validation_pipeline is None:
+            raise ValueError("Validation pipeline is not set")
+
+        logger.info("Starting validation")
+
+       
+
+        # --- 2. Data Preparation ---
+        # Prepare Negative Embeddings
+        neg_prompt_embed = self.compute_text_embeddings(
+            [""], 
+            self.get_module("text_encoder"),
+            self.get_module("tokenizer"),
+            max_sequence_length=512, 
+            device=self.device
+        )
+        sample_neg_prompt_embeds = neg_prompt_embed.repeat(self.training_args.rl_args.sample_test_batch_size, 1, 1)
+
+        
+        # Setup Dataset
+        validation_dataset = ValidationDataset(training_args.validation_dataset_file)
+        validation_dataloader = DataLoader(validation_dataset,
+                                        batch_size=training_args.eval_batch_size, # Ensure this arg exists
+                                        num_workers=0)
+
+        self.transformer.eval()
+
+        # --- 3. Inference Loop ---
+        # Container for results
+        step_results = {
+            "videos": [],
+            "captions": [],
+            "rewards": defaultdict(list)
+        }
+
+        for batch_idx, validation_batch in enumerate(validation_dataloader):
+            # Extract prompts
+            prompts, prompt_metadata = validation_batch
+
+            # Compute Embeddings
+            prompt_embeds = self.compute_text_embeddings(
+                prompts,
+                self.get_module("text_encoder"),
+                self.get_module("tokenizer"),
+                max_sequence_length=512,
+                device=self.device
+            )
+            if len(prompt_embeds)<len(sample_neg_prompt_embeds):
+                sample_neg_prompt_embeds  = sample_neg_prompt_embeds [:len(prompt_embeds)]
+
+            # Run Inference
+            with torch.no_grad():
+                videos, latents, log_probs, _ = wan_pipeline_with_logprob(
+                    self.validation_pipeline,
+                    prompt_embeds=prompt_embeds,
+                    negative_prompt_embeds=sample_neg_prompt_embeds,
+                    num_inference_steps=self.training_args.rl_args.eval_num_steps,
+                    guidance_scale=self.training_args.rl_args.eval_guidance_scale,
+                    output_type="pt",
+                    return_dict=False,
+                    num_frames=self.training_args.frames,
+                    height=self.training_args.height,
+                    width=self.training_args.width,
+                    determistic=True,
+                )
+
+            # Check Reward Calculation
+            
+            future_rewards = self.executor.submit(self.reward_fn, videos, prompts, prompt_metadata, only_strict=False)
+            rewards_dict, _ = future_rewards.result()
+
+            # --- 5. Process Outputs ---
+            # Store Rewards
+            for k, v in rewards_dict.items():
+                step_results["rewards"][k].append(v)
+
+            # Store Videos (Convert to numpy uint8)
+            # Using the correct rearrange logic we discussed: b c t h w -> b t h w c
+            video_permuted = rearrange(videos, "b c t h w -> b t h w c")
+            
+            for v_idx, video_tensor in enumerate(video_permuted):
+                video_np = (video_tensor.cpu().numpy() * 255).astype(np.uint8)
+                step_results["videos"].append(video_np)
+                step_results["captions"].append(prompts[v_idx])
+
+        # --- 6. Consolidate Results (No Distributed Gathering) ---
+        # Flatten the rewards lists into single arrays
+        all_rewards = {k: np.concatenate(v) for k, v in step_results["rewards"].items()}
+        all_videos = step_results["videos"]
+        all_captions = step_results["captions"]
+
+        # --- 7. Logging ---
+        # Save Videos
+        video_filenames = []
+        os.makedirs(training_args.output_dir, exist_ok=True)
+        
+        num_samples_to_save = min(15, len(all_videos))
+        
+        for i in range(num_samples_to_save):
+            filename = os.path.join(
+                training_args.output_dir,
+                f"val_step_{global_step}_idx_{i}.mp4"
+            )
+            imageio.mimsave(filename, all_videos[i], fps=8, codec="libx264")
+            video_filenames.append(filename)
+
+        # Log to Tracker
+        if hasattr(self.tracker, "log_artifacts"):
+            wandb_videos = []
+            for i in range(num_samples_to_save):
+                # Create caption with reward stats
+                reward_str = " | ".join(f"{k}: {all_rewards[k][i]:.2f}" for k in all_rewards)
+                full_caption = f"{all_captions[i][:100]} | {reward_str}"
+                
+                wandb_videos.append(
+                    wandb.Video(video_filenames[i], caption=full_caption, fps=8)
+                )
+            
+            # Calculate Mean Rewards
+            mean_rewards = {f"eval_reward_{k}": np.mean(v) for k, v in all_rewards.items()}
+            
+            logs = {
+                "eval_images": wandb_videos,
+                **mean_rewards
+            }
+            self.tracker.log_artifacts(logs, global_step)
 
 
+        training_args.inference_mode = False
+        self.transformer.train()    
 
-    def collect_trajectories(self, text_encoders, tokenizers, sample_neg_prompt_embeds) -> TrainingBatch:
+    def collect_trajectories(self, epoch, text_encoders, tokenizers, sample_neg_prompt_embeds, train_iter) -> TrainingBatch:
         """
         Collect on-policy trajectories by generating videos with log probabilities.
         
@@ -444,7 +681,7 @@ class RLPipeline(TrainingPipeline):
         prompts = []
         for i in tqdm(
             range(self.training_args.rl_args.sample_num_batches_per_epoch),
-            desc=f"Epoch {epoch}: sampling",
+            # desc=f"Epoch {epoch}: sampling",
             # disable=not accelerator.is_local_main_process,
             position=0,
         ):
@@ -465,10 +702,10 @@ class RLPipeline(TrainingPipeline):
                 truncation=True,
                 return_tensors="pt",
             ).input_ids.to(self.device)
-            if i==0 and epoch % self.training_args.eval_freq == 0 and epoch>0:
-                self.eval(pipeline, self.test_dataloader, text_encoders, tokenizers, eval_reward_fn, executor)
-            if i==0 and epoch % self.training_args.save_freq == 0 and epoch>0 and accelerator.is_main_process:
-                save_ckpt(self.training_args.save_dir, transformer, global_step, accelerator, ema, transformer_trainable_parameters, config)
+            # if i==0 and epoch % self.training_args.eval_freq == 0 and epoch>0:
+            #     self.eval(pipeline, self.test_dataloader, text_encoders, tokenizers, eval_reward_fn, executor)
+            # if i==0 and epoch % self.training_args.save_freq == 0 and epoch>0 and accelerator.is_main_process:
+            #     save_ckpt(self.training_args.save_dir, transformer, global_step, accelerator, ema, transformer_trainable_parameters, config)
             # 这里是故意的，因为前两个epoch收集的group size会有bug,经过两个epoch后，group_size稳定成指定的
             if epoch < 2:
                 continue
@@ -482,7 +719,7 @@ class RLPipeline(TrainingPipeline):
                 # with autocast():
                 with torch.no_grad():
                     videos, latents, log_probs, kls = wan_pipeline_with_logprob(
-                        pipeline,
+                        self,
                         prompt_embeds=prompt_embeds,
                         negative_prompt_embeds=sample_neg_prompt_embeds,
                         num_inference_steps=self.training_args.rl_args.num_steps,
@@ -863,7 +1100,45 @@ class RLPipeline(TrainingPipeline):
             prev_sample=next_latents.float(),
             return_dt_and_std_dev_t=return_dt_and_std_dev_t
         )
+    def compute_log_prob(self, transformer, sample, j, embeds, negative_embeds):
+        scheduler = self.get_module("scheduler")
+        if self.training_args.rl_args.cfg:
+            noise_pred_text = transformer(
+                hidden_states=sample["latents"][:, j],
+                timestep=sample["timesteps"][:, j],
+                encoder_hidden_states=embeds,  # Should contain both neg and pos embeds
+                return_dict=False,
+            )[0]
+            noise_pred_uncond = transformer(
+                hidden_states=sample["latents"][:, j],
+                timestep=sample["timesteps"][:, j],
+                encoder_hidden_states=negative_embeds,
+                return_dict=False,
+            )[0]
+            noise_pred = (
+                noise_pred_uncond
+                + self.training_args.rl_args.guidance_scale
+                * (noise_pred_text - noise_pred_uncond)
+            )
+        else:
+            noise_pred = transformer(
+                hidden_states=sample["latents"][:, j],
+                timestep=sample["timesteps"][:, j],
+                encoder_hidden_states=embeds,
+                return_dict=False,
+            )[0]
+        
+        # compute the log prob of next_latents given latents under the current model
+        prev_sample, log_prob, prev_sample_mean, std_dev_t, dt = sde_step_with_logprob(
+            scheduler,
+            noise_pred.float(),
+            sample["timesteps"][:, j],
+            sample["latents"][:, j].float(),
+            prev_sample=sample["next_latents"][:, j].float(),
+            return_dt_and_std_dev_t=True
+        )
 
+        return prev_sample, log_prob, prev_sample_mean, std_dev_t, dt
     def _compute_grpo_loss(
         self,
         training_batch: TrainingBatch
@@ -1088,7 +1363,7 @@ class RLPipeline(TrainingPipeline):
         
         return total_loss, metrics
 
-    def train_one_step(self, samples: dict[str, torch.Tensor], optimizer: torch.optim.Optimizer, global_step: int, train_timesteps: list[int], train_neg_prompt_embeds: torch.Tensor) -> TrainingBatch:
+    def train_one_step(self, text_encoders, tokenizers, sample_neg_prompt_embeds, optimizer: torch.optim.Optimizer, global_step: int, train_timesteps: list[int], train_neg_prompt_embeds: torch.Tensor, train_iter: Iterator[tuple[list[str], dict[str, Any]]], epoch: int) -> TrainingBatch:
         """
         Train one step using GRPO algorithm.
 
@@ -1109,123 +1384,123 @@ class RLPipeline(TrainingPipeline):
         # if training_batch.current_timestep < self.training_args.rl_args.rl_warmup_steps:
         #     logger.debug("In warmup phase, using standard SFT training")
         #     return super().train_one_step(training_batch)
-         
+        samples = self.collect_trajectories(epoch, text_encoders, tokenizers, sample_neg_prompt_embeds, train_iter)
          
          # Shuffle  Samples for training, assuming samples is of the form as in FlowGRPO code
         total_batch_size, num_timesteps = samples["timesteps"].shape
         assert num_timesteps == self.training_args.rl_args.num_steps
+        for inner_epoch in range(self.training_args.rl_args.num_inner_epochs):
+            perm = torch.randperm(total_batch_size, device=self.device) # Shuffle samples along batch dimension
+            samples = {k: v[perm] for k, v in samples.items()}
+            
+            perms = torch.stack(
+                    [
+                        # torch.randperm(num_timesteps, device=accelerator.device)
+                        torch.arange(num_timesteps, device=self.device)
+                        for _ in range(total_batch_size)
+                    ]
+                )  # shuffle along time dimension independently for each sample
+            for key in ["timesteps", "latents", "next_latents", "log_probs"]:
+                    samples[key] = samples[key][
+                        torch.arange(total_batch_size, device=self.device)[:, None],
+                        perms,
+                    ]
+            micoe_batch = total_batch_size // (self.training_args.rl_args.sample_num_batches_per_epoch * self.training_args.rl_args.sample_time_per_prompt) # Change this according to RLargs config
 
-        perm = torch.randperm(total_batch_size, device=self.device) # Shuffle samples along batch dimension
-        samples = {k: v[perm] for k, v in samples.items()}
-        
-        perms = torch.stack(
-                [
-                    # torch.randperm(num_timesteps, device=accelerator.device)
-                    torch.arange(num_timesteps, device=self.device)
-                    for _ in range(total_batch_size)
+            samples_batched = {
+                k: v.reshape(-1, micoe_batch, *v.shape[1:])
+                for k, v in samples.items()
+            }
+
+            # dict of lists -> list of dicts for easier iteration
+            samples_batched = [
+                    dict(zip(samples_batched, x)) for x in zip(*samples_batched.values())
                 ]
-            )  # shuffle along time dimension independently for each sample
-        for key in ["timesteps", "latents", "next_latents", "log_probs"]:
-                samples[key] = samples[key][
-                    torch.arange(total_batch_size, device=self.device)[:, None],
-                    perms,
-                ]
-        micoe_batch = total_batch_size // (self.training_args.rl_args.sample_num_batches_per_epoch * self.training_args.rl_args.sample_time_per_prompt) # Change this according to RLargs config
 
-        samples_batched = {
-            k: v.reshape(-1, micoe_batch, *v.shape[1:])
-            for k, v in samples.items()
-        }
-
-        # dict of lists -> list of dicts for easier iteration
-        samples_batched = [
-                dict(zip(samples_batched, x)) for x in zip(*samples_batched.values())
-            ]
-
-        # train
-        self.transformer.train() # Review this, if it's correct 
-        info = defaultdict(list)
-        for i, sample in tqdm(
-                list(enumerate(samples_batched)),
-                # desc=f"Epoch {epoch}.{inner_epoch}: training", # Change this according to how for loops are in workflow
-                position=0,
-                # disable=not accelerator.is_local_main_process,
-            ):
-            if self.training_args.cfg:
-                    # concat negative prompts to sample prompts to avoid two forward passes
-                    embeds = sample["prompt_embeds"]
-                    negative_embeds = train_neg_prompt_embeds[:len(sample["prompt_embeds"])]
-            else:
-                embeds = sample["prompt_embeds"]
-                negative_embeds = None
-            for j in tqdm(
-                    train_timesteps,
-                    desc="Timestep",
-                    position=1,
-                    leave=False,
+            # train
+            self.transformer.train() # Review this, if it's correct 
+            info = defaultdict(list)
+            for i, sample in tqdm(
+                    list[tuple[int, dict[str, Any]]](enumerate(samples_batched)),
+                    # desc=f"Epoch {epoch}.{inner_epoch}: training", # Change this according to how for loops are in workflow
+                    position=0,
                     # disable=not accelerator.is_local_main_process,
                 ):
-                    # with accelerator.accumulate(self.transformer): # Review this line is it really self.transformer or self.get_module("transformer")?
-                        # with autocast():
-                        prev_sample, log_prob, prev_sample_mean, std_dev_t, dt = self._compute_log_prob_for_timestep(transformer, pipeline, sample, j, embeds, negative_embeds, config) # Review this line
-                        if self.training_args.rl_args.kl_beta > 0:
-                            with torch.no_grad():
-                                with self.transformer.disable_adapter(): # Review this as well.
-                                    prev_sample_ref, log_prob_ref, prev_sample_mean_ref, std_dev_t_ref, dt_ref = self._compute_log_prob_for_timestep(transformer, pipeline, sample, j, embeds, negative_embeds, config) # Review this line check for input parameters
+                if self.training_args.rl_args.cfg:
+                        # concat negative prompts to sample prompts to avoid two forward passes
+                        embeds = sample["prompt_embeds"]
+                        negative_embeds = train_neg_prompt_embeds[:len(sample["prompt_embeds"])]
+                else:
+                    embeds = sample["prompt_embeds"]
+                    negative_embeds = None
+                for j in tqdm(
+                        train_timesteps,
+                        desc="Timestep",
+                        position=1,
+                        leave=False,
+                        # disable=not accelerator.is_local_main_process,
+                    ):
+                        # with accelerator.accumulate(self.transformer): # Review this line is it really self.transformer or self.get_module("transformer")?
+                            # with autocast():
+                            prev_sample, log_prob, prev_sample_mean, std_dev_t, dt = self.compute_log_prob(self.transformer, sample, j, embeds, negative_embeds) # Review this line
+                            if self.training_args.rl_args.kl_beta > 0:
+                                with torch.no_grad():
+                                    with self.transformer.disable_adapter(): # Review this as well.
+                                        prev_sample_ref, log_prob_ref, prev_sample_mean_ref, std_dev_t_ref, dt_ref = self.compute_log_prob(self.transformer, sample, j, embeds, negative_embeds) # Review this line check for input parameters
 
-                        # grpo logic
-                        advantages = torch.clamp(
-                            sample["advantages"][:, j],
-                            -self.training_args.rl_args.adv_clip_max,
-                            self.training_args.rl_args.adv_clip_max,
-                        )
-                        ratio = torch.exp(log_prob - sample["log_probs"][:, j])
-                        unclipped_loss = -advantages * ratio
-                        clipped_loss = -advantages * torch.clamp(
-                            ratio,
-                            1.0 - self.training_args.rl_args.grpo_policy_clip_range,
-                            1.0 + self.training_args.rl_args.grpo_policy_clip_range,
-                        )
-                        policy_loss = torch.mean(torch.maximum(unclipped_loss, clipped_loss))
-
-                        if self.training_args.rl_args.kl_beta > 0:
-                            kl_loss = ((prev_sample_mean - prev_sample_mean_ref) ** 2).mean(dim=(1,2,3), keepdim=True) / (2 * (std_dev_t * dt_ref) ** 2)
-                            kl_loss = torch.mean(kl_loss)
-                            loss = policy_loss + self.training_args.rl_args.kl_beta * kl_loss
-                        else:
-                            loss = policy_loss
-
-                        info["approx_kl"].append(
-                            0.5
-                            * torch.mean((log_prob - sample["log_probs"][:, j]) ** 2)
-                        )
-                        info["clipfrac"].append(
-                            torch.mean(
-                                (
-                                    torch.abs(ratio - 1.0) > self.training_args.rl_args.grpo_policy_clip_range
-                                ).float()
+                            # grpo logic
+                            advantages = torch.clamp(
+                                sample["advantages"][:, j],
+                                -self.training_args.rl_args.adv_clip_max,
+                                self.training_args.rl_args.adv_clip_max,
                             )
-                        )
-                        info["policy_loss"].append(policy_loss)
-                        if self.training_args.rl_args.kl_beta > 0:
-                            info["kl_loss"].append(kl_loss)
+                            ratio = torch.exp(log_prob - sample["log_probs"][:, j])
+                            unclipped_loss = -advantages * ratio
+                            clipped_loss = -advantages * torch.clamp(
+                                ratio,
+                                1.0 - self.training_args.rl_args.grpo_policy_clip_range,
+                                1.0 + self.training_args.rl_args.grpo_policy_clip_range,
+                            )
+                            policy_loss = torch.mean(torch.maximum(unclipped_loss, clipped_loss))
 
-                        info["loss"].append(loss)
+                            if self.training_args.rl_args.kl_beta > 0:
+                                kl_loss = ((prev_sample_mean - prev_sample_mean_ref) ** 2).mean(dim=(1,2,3), keepdim=True) / (2 * (std_dev_t * dt_ref) ** 2)
+                                kl_loss = torch.mean(kl_loss)
+                                loss = policy_loss + self.training_args.rl_args.kl_beta * kl_loss
+                            else:
+                                loss = policy_loss
 
-                        # backward pass
-                        # accelerator.backward(loss)
-                        loss.backward()
-                        
-                        # if accelerator.sync_gradients:
-                        #     accelerator.clip_grad_norm_(
-                        #         transformer.parameters(), self.training_args.max_grad_norm # Review this line
-                        #     )
-                        torch.nn.utils.clip_grad_norm_(
-                            self.transformer.parameters(), self.training_args.max_grad_norm
-            )
-                        optimizer.step()
-                        optimizer.zero_grad()
-                        info = {k: torch.mean(torch.stack(v)).item() for k, v in info.items()}
+                            info["approx_kl"].append(
+                                0.5
+                                * torch.mean((log_prob - sample["log_probs"][:, j]) ** 2)
+                            )
+                            info["clipfrac"].append(
+                                torch.mean(
+                                    (
+                                        torch.abs(ratio - 1.0) > self.training_args.rl_args.grpo_policy_clip_range
+                                    ).float()
+                                )
+                            )
+                            info["policy_loss"].append(policy_loss)
+                            if self.training_args.rl_args.kl_beta > 0:
+                                info["kl_loss"].append(kl_loss)
+
+                            info["loss"].append(loss)
+
+                            # backward pass
+                            # accelerator.backward(loss)
+                            loss.backward()
+                            
+                            # if accelerator.sync_gradients:
+                            #     accelerator.clip_grad_norm_(
+                            #         transformer.parameters(), self.training_args.max_grad_norm # Review this line
+                            #     )
+                            torch.nn.utils.clip_grad_norm_(
+                                self.transformer.parameters(), self.training_args.max_grad_norm
+                )
+                            optimizer.step()
+                            optimizer.zero_grad()
+                            info = {k: torch.mean(torch.stack(v)).item() for k, v in info.items()}
 
                     # Checks if the accelerator has performed an optimization step behind the scenes
                     # if accelerator.sync_gradients:
@@ -1271,7 +1546,7 @@ class RLPipeline(TrainingPipeline):
         # )
 
         train_timesteps = [step_index  for step_index in range(num_train_timesteps)]
-        gradient_accumulation_steps = self.training_args.gradient_accumulation_steps * num_train_timesteps
+        
 
         # accelerator = Accelerator(
         #     log_with="wandb",
@@ -1293,104 +1568,34 @@ class RLPipeline(TrainingPipeline):
         # logger.info(f"\n{config}")
 
         # set seed (device_specific is very important to get different prompts on different devices)
-        set_seed(self.training_args.seed, device_specific=True)
+        # set_seed(self.training_args.seed, device_specific=True)
+        
 
-        # load scheduler, tokenizer and models.
-        pipeline = WanPipeline.from_pretrained(
-            self.training_args.model_path
-        )
-        # freeze parameters of models to save more memory
-        pipeline.vae.requires_grad_(False)
-        pipeline.text_encoder.requires_grad_(False)
+        text_encoders = [self.get_module("text_encoder")]
+        tokenizers = [self.get_module("tokenizer")]
 
-        pipeline.transformer.requires_grad_(not self.training_args.lora_training)
-
-        text_encoders = [pipeline.text_encoder]
-        tokenizers = [pipeline.tokenizer]
-
-        # disable safety checker
-        pipeline.safety_checker = None
-        # make the progress bar nicer
-        pipeline.set_progress_bar_config(
-            position=1,
-            # disable=not accelerator.is_local_main_process,
-            leave=False,
-            desc="Timestep",
-            dynamic_ncols=True,
-        )
+        # # disable safety checker
+        # pipeline.safety_checker = None
+        # # make the progress bar nicer
+        # pipeline.set_progress_bar_config(
+        #     position=1,
+        #     # disable=not accelerator.is_local_main_process,
+        #     leave=False,
+        #     desc="Timestep",
+        #     dynamic_ncols=True,
+        # )
 
         # For mixed precision training we cast all non-trainable weigths (vae, non-lora text_encoder and non-lora transformer) to half-precision
         # as these weights are only used for inference, keeping weights in full precision is not required.
-        inference_dtype = torch.float32
-        if self.training_args.mixed_precision == "fp16":
-            inference_dtype = torch.float16
-        elif self.training_args.mixed_precision == "bf16":
-            inference_dtype = torch.bfloat16
-
-        # Move transformer, vae and text_encoder to device and cast to inference_dtype
-        pipeline.vae.to(self.device, dtype=torch.float32)
-        pipeline.text_encoder.to(self.device, dtype=inference_dtype)
-        # pipeline.scheduler.to(accelerator.device, dtype=inference_dtype)
-
-        if self.training_args.lora_training:
-            # pipeline.transformer.to(accelerator.device, dtype=inference_dtype)
-            pipeline.transformer.to(self.device)
-            
-            # pipeline.transformer.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
-
-        if self.training_args.lora_training:
-            # Set correct lora layers
-            target_modules = [
-                "add_k_proj",
-                "add_q_proj",
-                "add_v_proj",
-                "to_add_out",
-                "to_k",
-                "to_out.0",
-                "to_q",
-                "to_v",
-            ]
-            transformer_lora_config = LoraConfig(
-                r=32,
-                lora_alpha=64,
-                init_lora_weights="gaussian",
-                target_modules=target_modules,
-            )
-            if self.training_args.lora_path:
-                pipeline.transformer = PeftModel.from_pretrained(pipeline.transformer, self.training_args.lora_path)
-                # 使用PeftModel.from_pretrained load后所有参数的requires_grad都是False，需要set_adapter来使得adapter参数梯度为True
-                pipeline.transformer.set_adapter("default")
-            else:
-                pipeline.transformer = get_peft_model(pipeline.transformer, transformer_lora_config)
-        
-        transformer = pipeline.transformer
-        transformer.enable_gradient_checkpointing()
-        transformer_trainable_parameters = list(filter(lambda p: p.requires_grad, transformer.parameters()))
-        # 平均影响到之前的20*8=160个step
-        # ema = EMAModuleWrapper(transformer_trainable_parameters, decay=0.9, update_step_interval=8, device=accelerator.device)
-        
-        # Enable TF32 for faster training on Ampere GPUs,
-        # cf https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices
-        if self.training_args.allow_tf32:
-            torch.backends.cuda.matmul.allow_tf32 = True
-
-            
-        optimizer_cls = torch.optim.AdamW
-
-        optimizer = optimizer_cls(
-            transformer_trainable_parameters,
-            lr=self.training_args.learning_rate,
-            betas=tuple(float(b) for b in self.training_args.betas.split(",")),
-            weight_decay=self.training_args.weight_decay,
-            eps=self.training_args.adam_epsilon,
-        )
+      
+       
 
         # prepare prompt and reward fn
         # reward_fn = getattr(flow_grpo.rewards, 'multi_score')(accelerator.device, config.reward_fn)
         # eval_reward_fn = getattr(flow_grpo.rewards, 'multi_score')(accelerator.device, config.reward_fn)
 
 
-        neg_prompt_embed = self.compute_text_embeddings([""], text_encoders, tokenizers, max_sequence_length=512, device=accelerator.device)
+        neg_prompt_embed = self.compute_text_embeddings([""], text_encoders, tokenizers, max_sequence_length=512, device=self.device)
 
         sample_neg_prompt_embeds = neg_prompt_embed.repeat(self.training_args.rl_args.sample_train_batch_size, 1, 1)
         train_neg_prompt_embeds = neg_prompt_embed.repeat(self.training_args.train_batch_size * self.training_args.rl_args.sample_time_per_prompt, 1, 1)
@@ -1411,7 +1616,6 @@ class RLPipeline(TrainingPipeline):
 
         # executor to perform callbacks asynchronously. this is beneficial for the llava callbacks which makes a request to a
         # remote server running llava inference.
-        executor = futures.ThreadPoolExecutor(max_workers=8)
 
         # Train!
         # samples_per_epoch = (
@@ -1465,11 +1669,7 @@ class RLPipeline(TrainingPipeline):
         first_epoch = 0
         train_iter = iter(self.train_dataloader)
         for epoch in range(first_epoch, self.training_args.num_epochs):
-            # Sampling
-            samples = self.collect_trajectories(text_encoders, tokenizers, sample_neg_prompt_embeds)
-            # Training
-            for inner_epoch in range(self.training_args.rl_args.num_inner_epochs):
-                self.train_one_step(samples, optimizer, global_step, train_timesteps, train_neg_prompt_embeds)
+            self.train_one_step(text_encoders, tokenizers, sample_neg_prompt_embeds, self.optimizer, global_step, train_timesteps, train_neg_prompt_embeds, train_iter, epoch)
 
 
 

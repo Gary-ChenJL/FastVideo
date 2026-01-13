@@ -734,6 +734,8 @@ class RLArgs:
     sde_window_range: tuple[int, int] = (0, 10)
 
     sample_time_per_prompt: int = 1
+
+    cfg: bool = True # Whether to use classifier-free guidance
     # ============================================================================
     # DPO-SPECIFIC CONFIGURATION
 
@@ -957,7 +959,7 @@ class TrainingArgs(FastVideoArgs):
     ema_start_step: int = 0
     training_cfg_rate: float = 0.0
     precondition_outputs: bool = False
-    cfg: bool = True
+    
 
     
     
