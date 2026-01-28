@@ -10,9 +10,12 @@ Reference:
     Flow-GRPO: https://github.com/yifan123/flow_grpo
 """
 
+import atexit
+import concurrent.futures
 import json
 import math
 import os
+import time
 from typing import Any
 
 import torch
@@ -71,6 +74,11 @@ class RLPipeline(TrainingPipeline):
         self.value_optimizer: torch.optim.Optimizer | None = None
         self.value_scheduler: Any | None = None
         self.sampling_pipeline = None
+        self._async_reward_enabled = False
+        self._reward_executor: concurrent.futures.ThreadPoolExecutor | None = None
+        self._reward_streams: list[torch.cuda.Stream] | None = None
+        self._reward_max_queue = 0
+        self._async_reward_shutdown_registered = False
 
         # Set CFG guidace scale
         self.guidance_scale = fastvideo_args.rl_args.guidance_scale
@@ -434,6 +442,8 @@ class RLPipeline(TrainingPipeline):
         logger.info("Initialized PerPromptStatTracker with global_std=%s",
                     global_std)
 
+        self._initialize_async_rewarding(training_args)
+
         logger.info("RL pipeline initialization complete")
         self.sampling_pipeline = self._build_sampling_pipeline(training_args)
 
@@ -540,6 +550,107 @@ class RLPipeline(TrainingPipeline):
         )
         # Set validation_pipeline to None for now
         self.validation_pipeline = None
+
+    def _initialize_async_rewarding(self, training_args: TrainingArgs) -> None:
+        """Initialize async reward executor and streams if enabled."""
+        async_enabled = getattr(training_args.rl_args, "rl_async_rewards", False)
+        if not async_enabled:
+            return
+
+        max_workers = max(1, int(getattr(training_args.rl_args, "rl_async_reward_workers", 2)))
+        self._reward_max_queue = int(getattr(training_args.rl_args, "rl_async_reward_max_queue", 0))
+        self._reward_executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=max_workers)
+        self._async_reward_enabled = True
+
+        if isinstance(self.device, torch.device) and self.device.type == "cuda":
+            self._reward_streams = [
+                torch.cuda.Stream(device=self.device) for _ in range(max_workers)
+            ]
+        else:
+            self._reward_streams = None
+
+        if not self._async_reward_shutdown_registered:
+            atexit.register(self._shutdown_async_rewards)
+            self._async_reward_shutdown_registered = True
+
+        logger.info(
+            "Async reward computation enabled (workers=%d, max_queue=%d, cuda_streams=%s)",
+            max_workers,
+            self._reward_max_queue,
+            self._reward_streams is not None,
+        )
+
+    def _shutdown_async_rewards(self) -> None:
+        """Shutdown async reward executor if active."""
+        if self._reward_executor is None:
+            return
+        try:
+            self._reward_executor.shutdown(wait=True)
+        finally:
+            self._reward_executor = None
+            self._reward_streams = None
+            self._async_reward_enabled = False
+
+    def __del__(self):
+        self._shutdown_async_rewards()
+
+    def _compute_reward_async(self, video: torch.Tensor, prompt: str,
+                              stream_idx: int) -> float:
+        """Compute a single-sample reward in a worker thread."""
+        if self.reward_models is None:
+            raise RuntimeError(
+                "Reward models not initialized. Call initialize_training_pipeline first."
+            )
+
+        stream = None
+        if self._reward_streams is not None:
+            stream = self._reward_streams[stream_idx % len(self._reward_streams)]
+
+        if isinstance(self.device, torch.device) and self.device.type == "cuda":
+            torch.cuda.set_device(self.device)
+
+        with torch.no_grad():
+            if stream is not None:
+                with torch.cuda.stream(stream):
+                    reward = self.reward_models.compute_reward(
+                        video.unsqueeze(0), [prompt])
+                stream.synchronize()
+            else:
+                reward = self.reward_models.compute_reward(
+                    video.unsqueeze(0), [prompt])
+
+        return float(reward.item())
+
+    def _submit_async_rewards(self, training_batch: TrainingBatch,
+                               decoded_videos: torch.Tensor,
+                               prompts: list[str]) -> None:
+        """Submit per-sample async reward jobs after decoding."""
+        if not self._async_reward_enabled or self._reward_executor is None:
+            return
+        if decoded_videos.shape[0] != len(prompts):
+            raise ValueError(
+                f"Decoded videos batch size {decoded_videos.shape[0]} does not match prompts length {len(prompts)}"
+            )
+
+        futures: list[concurrent.futures.Future] = []
+        max_queue = self._reward_max_queue
+        for idx, (video, prompt) in enumerate(
+                zip(decoded_videos, prompts, strict=False)):
+            if max_queue > 0 and len(futures) >= max_queue:
+                futures.pop(0).result()
+            future = self._reward_executor.submit(self._compute_reward_async,
+                                                  video, prompt, idx)
+            futures.append(future)
+
+        if training_batch.input_kwargs is None:
+            training_batch.input_kwargs = {}
+        existing_futures = training_batch.input_kwargs.get("reward_futures")
+        if existing_futures:
+            existing_futures.extend(futures)
+        else:
+            training_batch.input_kwargs["reward_futures"] = futures
+
 
     def collect_trajectories(self,
                              training_batch: TrainingBatch) -> TrainingBatch:
@@ -686,140 +797,156 @@ class RLPipeline(TrainingPipeline):
                         generator=self.noise_random_generator,
                         device=self.device,
                     ).item())
-                
-                # Set seed in sampling_param - InputValidationStage will use this to create
-                # a list of generators (one per batch item)
-                sampling_param.seed = self.seed
-                
-                # Don't pass a generator - let InputValidationStage create the proper list
-                # of generators from the seed. This ensures each batch item gets its own
-                # generator with a unique seed (seed, seed+1, seed+2, ...)
-                generator = None
-                
-                rl_data = ForwardBatch.RLData(
-                    enabled=True,
-                    collect_log_probs=True,
-                    collect_kl=collect_kl,
-                    kl_reward=kl_reward,
-                    store_trajectory=True,
-                    keep_trajectory_on_cpu=False,
-                )
-                
-                # Prepare ForwardBatch initialization parameters for logging
-                # Use shallow_asdict to get all fields from sampling_param (like validation)
-                sampling_param_dict = shallow_asdict(sampling_param)
-                batch_init_params = {
-                    **sampling_param_dict,
-                    "latents": None,
-                    "generator": "None (InputValidationStage will create list)",
-                    "n_tokens": n_tokens,
-                    "eta": 0.0,
-                    "VSA_sparsity": self.training_args.VSA_sparsity,
-                    "rl_data": {
-                        "enabled": rl_data.enabled,
-                        "collect_log_probs": rl_data.collect_log_probs,
-                        "collect_kl": rl_data.collect_kl,
-                        "kl_reward": rl_data.kl_reward,
-                        "store_trajectory": rl_data.store_trajectory,
-                        "keep_trajectory_on_cpu": rl_data.keep_trajectory_on_cpu,
-                    },
-                }
-                
-                # Log ForwardBatch initialization parameters
-                import os as os_module
-                os_module.makedirs("/mnt/fast-disks/hao_lab/shijie/mylogs", exist_ok=True)
-                log_file = "/mnt/fast-disks/hao_lab/shijie/mylogs/sampling_forward_batch_params.json"
-                with open(log_file, "w") as f:
-                    json.dump(batch_init_params, f, indent=2, default=str)
-                logger.info(f"Sampling ForwardBatch initialization parameters logged to {log_file}")
-                
-                # Create ForwardBatch using same pattern as validation: **shallow_asdict(sampling_param)
-                # This ensures all fields from SamplingParam are included
-                # Note: generator=None lets InputValidationStage create proper list of generators
-                # (one per batch item) from the seed, ensuring each video gets unique randomness
-                forward_batch = ForwardBatch(
-                    **shallow_asdict(sampling_param),
-                    latents=None,
-                    generator=None,  # Let InputValidationStage create generators from seed
-                    n_tokens=n_tokens,  # Add n_tokens like validation
-                    eta=0.0,  # Add eta like validation
-                    VSA_sparsity=self.training_args.VSA_sparsity,  # Add VSA_sparsity like validation
-                    rl_data=rl_data,  # RL-specific field (not in validation)
-                )
 
-                orig_output_type = getattr(self.training_args, "output_type",
-                                           None)
-                orig_inference_mode = getattr(self.training_args,
-                                              "inference_mode", None)
-                orig_dit_cpu_offload = getattr(self.training_args,
-                                               "dit_cpu_offload", None)
-                # Use full pipeline with decoding (like validation) instead of "latent"
-                # This ensures we use the same decoding path as validation
-                if orig_output_type == "latent":
-                    # Set to "pt" to enable decoding (same as validation pipeline)
-                    self.training_args.output_type = "pt"
-                elif orig_output_type is None:
-                    # If not set, explicitly set to "pt" to ensure decoding
-                    self.training_args.output_type = "pt"
-                # If orig_output_type is already "pt" or something else, keep it
-                if orig_inference_mode is not None:
-                    self.training_args.inference_mode = True
-                if orig_dit_cpu_offload is not None:
-                    # Mirror validation: we run sampling fully on GPU.
-                    self.training_args.dit_cpu_offload = False
-                
-                # Run sampling pipeline with full decoding
-                try:
-                    output_batch = self.sampling_pipeline.forward(
-                        forward_batch, self.training_args)
-                finally:
-                    if orig_output_type is not None:
-                        self.training_args.output_type = orig_output_type
+                total_prompts = len(prompts)
+                chunk_size = 1 if self._async_reward_enabled else total_prompts
+
+                for start_idx in range(0, total_prompts, chunk_size):
+                    end_idx = min(start_idx + chunk_size, total_prompts)
+                    chunk_prompts = prompts[start_idx:end_idx]
+
+                    # Set seed in sampling_param - InputValidationStage will use this to create
+                    # a list of generators (one per batch item)
+                    # Offset seed to match the per-item seed sequence from full-batch sampling.
+                    sampling_param.seed = base_seed + start_idx
+
+                    # Update sampling param for this chunk
+                    sampling_param.prompt = chunk_prompts
+
+                    # Don't pass a generator - let InputValidationStage create the proper list
+                    # of generators from the seed. This ensures each batch item gets its own
+                    # generator with a unique seed (seed, seed+1, seed+2, ...)
+                    generator = None
+
+                    rl_data = ForwardBatch.RLData(
+                        enabled=True,
+                        collect_log_probs=True,
+                        collect_kl=collect_kl,
+                        kl_reward=kl_reward,
+                        store_trajectory=True,
+                        keep_trajectory_on_cpu=False,
+                    )
+
+                    # Prepare ForwardBatch initialization parameters for logging
+                    # Use shallow_asdict to get all fields from sampling_param (like validation)
+                    sampling_param_dict = shallow_asdict(sampling_param)
+                    batch_init_params = {
+                        **sampling_param_dict,
+                        "latents": None,
+                        "generator": "None (InputValidationStage will create list)",
+                        "n_tokens": n_tokens,
+                        "eta": 0.0,
+                        "VSA_sparsity": self.training_args.VSA_sparsity,
+                        "rl_data": {
+                            "enabled": rl_data.enabled,
+                            "collect_log_probs": rl_data.collect_log_probs,
+                            "collect_kl": rl_data.collect_kl,
+                            "kl_reward": rl_data.kl_reward,
+                            "store_trajectory": rl_data.store_trajectory,
+                            "keep_trajectory_on_cpu": rl_data.keep_trajectory_on_cpu,
+                        },
+                    }
+
+                    # Log ForwardBatch initialization parameters
+                    import os as os_module
+                    os_module.makedirs("/mnt/fast-disks/hao_lab/shijie/mylogs", exist_ok=True)
+                    log_file = "/mnt/fast-disks/hao_lab/shijie/mylogs/sampling_forward_batch_params.json"
+                    with open(log_file, "w") as f:
+                        json.dump(batch_init_params, f, indent=2, default=str)
+                    logger.info(f"Sampling ForwardBatch initialization parameters logged to {log_file}")
+
+                    # Create ForwardBatch using same pattern as validation: **shallow_asdict(sampling_param)
+                    # This ensures all fields from SamplingParam are included
+                    # Note: generator=None lets InputValidationStage create proper list of generators
+                    # (one per batch item) from the seed, ensuring each video gets unique randomness
+                    forward_batch = ForwardBatch(
+                        **shallow_asdict(sampling_param),
+                        latents=None,
+                        generator=generator,
+                        n_tokens=n_tokens,  # Add n_tokens like validation
+                        eta=0.0,  # Add eta like validation
+                        VSA_sparsity=self.training_args.VSA_sparsity,  # Add VSA_sparsity like validation
+                        rl_data=rl_data,  # RL-specific field (not in validation)
+                    )
+
+                    orig_output_type = getattr(self.training_args, "output_type",
+                                               None)
+                    orig_inference_mode = getattr(self.training_args,
+                                                  "inference_mode", None)
+                    orig_dit_cpu_offload = getattr(self.training_args,
+                                                   "dit_cpu_offload", None)
+                    # Use full pipeline with decoding (like validation) instead of "latent"
+                    # This ensures we use the same decoding path as validation
+                    if orig_output_type == "latent":
+                        # Set to "pt" to enable decoding (same as validation pipeline)
+                        self.training_args.output_type = "pt"
+                    elif orig_output_type is None:
+                        # If not set, explicitly set to "pt" to ensure decoding
+                        self.training_args.output_type = "pt"
+                    # If orig_output_type is already "pt" or something else, keep it
                     if orig_inference_mode is not None:
-                        self.training_args.inference_mode = orig_inference_mode
+                        self.training_args.inference_mode = True
                     if orig_dit_cpu_offload is not None:
-                        self.training_args.dit_cpu_offload = orig_dit_cpu_offload
-                if output_batch.rl_data.trajectory_latents is None:
-                    raise RuntimeError(
-                        "RL trajectory latents were not collected")
+                        # Mirror validation: we run sampling fully on GPU.
+                        self.training_args.dit_cpu_offload = False
 
-                latents = output_batch.rl_data.trajectory_latents
-                log_probs = output_batch.rl_data.log_probs
-                if log_probs is None:
-                    raise RuntimeError(
-                        "RL log probabilities were not collected")
-                kl = output_batch.rl_data.kl
-                timesteps = output_batch.rl_data.trajectory_timesteps
-                if timesteps is None:
-                    raise RuntimeError("RL timesteps were not collected")
-                timesteps = timesteps.repeat(latents.shape[0], 1)
+                    # Run sampling pipeline with full decoding
+                    try:
+                        output_batch = self.sampling_pipeline.forward(
+                            forward_batch, self.training_args)
+                    finally:
+                        if orig_output_type is not None:
+                            self.training_args.output_type = orig_output_type
+                        if orig_inference_mode is not None:
+                            self.training_args.inference_mode = orig_inference_mode
+                        if orig_dit_cpu_offload is not None:
+                            self.training_args.dit_cpu_offload = orig_dit_cpu_offload
+                    if output_batch.rl_data.trajectory_latents is None:
+                        raise RuntimeError(
+                            "RL trajectory latents were not collected")
 
-                # Extract decoded videos from pipeline output (same as validation pipeline)
-                # output_batch.output contains decoded videos [B, C, T, H, W] if output_type != "latent"
-                decoded_videos = output_batch.output
-                if decoded_videos is None:
-                    raise RuntimeError(
-                        "Decoded videos not found in pipeline output. "
-                        "Make sure output_type is not set to 'latent'.")
+                    latents = output_batch.rl_data.trajectory_latents
+                    log_probs = output_batch.rl_data.log_probs
+                    if log_probs is None:
+                        raise RuntimeError(
+                            "RL log probabilities were not collected")
+                    kl = output_batch.rl_data.kl
+                    timesteps = output_batch.rl_data.trajectory_timesteps
+                    if timesteps is None:
+                        raise RuntimeError("RL timesteps were not collected")
+                    timesteps = timesteps.repeat(latents.shape[0], 1)
 
-                logger.info("latents.shape: %s", latents.shape)
-                logger.info("decoded_videos.shape: %s", decoded_videos.shape)
-                if log_probs is not None:
-                    logger.info("log_probs.shape: %s", log_probs.shape)
-                if kl is not None:
-                    logger.info("kl.shape: %s", kl.shape)
+                    # Extract decoded videos from pipeline output (same as validation pipeline)
+                    # output_batch.output contains decoded videos [B, C, T, H, W] if output_type != "latent"
+                    decoded_videos = output_batch.output
+                    if decoded_videos is None:
+                        raise RuntimeError(
+                            "Decoded videos not found in pipeline output. "
+                            "Make sure output_type is not set to 'latent'.")
 
-                # Set raw_latent_shape for metrics (used by training_pipeline.py)
-                training_batch.raw_latent_shape = latents.shape
+                    logger.info("latents.shape: %s", latents.shape)
+                    logger.info("decoded_videos.shape: %s", decoded_videos.shape)
+                    if log_probs is not None:
+                        logger.info("log_probs.shape: %s", log_probs.shape)
+                    if kl is not None:
+                        logger.info("kl.shape: %s", kl.shape)
 
-                all_latents_list.append(latents)
-                if log_probs is not None:
-                    all_log_probs_list.append(log_probs)
-                if kl is not None:
-                    all_kl_list.append(kl)
-                all_timesteps_list.append(timesteps)
-                all_decoded_videos_list.append(decoded_videos)
-                all_prompt_ids_list.append(None)
+                    # Set raw_latent_shape for metrics (used by training_pipeline.py)
+                    training_batch.raw_latent_shape = latents.shape
+
+                    all_latents_list.append(latents)
+                    if log_probs is not None:
+                        all_log_probs_list.append(log_probs)
+                    if kl is not None:
+                        all_kl_list.append(kl)
+                    all_timesteps_list.append(timesteps)
+                    all_decoded_videos_list.append(decoded_videos)
+                    all_prompt_ids_list.append(None)
+
+                    # Submit async rewards for this chunk to overlap with next chunk generation
+                    if self._async_reward_enabled:
+                        self._submit_async_rewards(training_batch, decoded_videos,
+                                                   chunk_prompts)
 
         # Concatenate across sample_time_per_prompt dimension (if sample_time_per_prompt > 1)
         if sample_time_per_prompt > 1:
@@ -868,6 +995,12 @@ class RLPipeline(TrainingPipeline):
             training_batch.input_kwargs["prompts"] = prompts
         # Store decoded videos in input_kwargs (same pattern as validation)
         training_batch.input_kwargs["decoded_videos"] = decoded_videos
+        # Optionally submit async reward computation (per-sample)
+        if self._async_reward_enabled and not training_batch.input_kwargs.get(
+                "reward_futures"):
+            prompts_for_rewards = training_batch.input_kwargs.get("prompts", [])
+            self._submit_async_rewards(training_batch, decoded_videos,
+                                       prompts_for_rewards)
 
 # # myregion: Debug: Save decoded video for visual verification
 #         from contextlib import nullcontext
@@ -1008,7 +1141,28 @@ class RLPipeline(TrainingPipeline):
         
         # Compute rewards using reward models
         # Note: reward_models.compute_reward expects videos [B, C, T, H, W] and prompts [B]
-        reward_scores = self.reward_models.compute_reward(videos, prompts)
+        target_device = (training_batch.log_probs.device
+                         if training_batch.log_probs is not None else
+                         videos.device)
+        reward_futures = None
+        if training_batch.input_kwargs is not None:
+            reward_futures = training_batch.input_kwargs.get("reward_futures")
+        if reward_futures:
+            start_time = time.perf_counter()
+            reward_values = [future.result() for future in reward_futures]
+            reward_scores = torch.tensor(
+                reward_values, device=target_device, dtype=torch.float32)
+            del training_batch.input_kwargs["reward_futures"]
+            elapsed = time.perf_counter() - start_time
+            logger.info(
+                "Async rewards collected: count=%d, time=%.3fs",
+                len(reward_values),
+                elapsed,
+            )
+        else:
+            reward_scores = self.reward_models.compute_reward(videos, prompts)
+            if reward_scores.device != target_device:
+                reward_scores = reward_scores.to(target_device)
 
         # Apply KL reward penalty if configured
         # In FlowGRPO: rewards["avg"] = rewards["avg"] - kl_reward * kl

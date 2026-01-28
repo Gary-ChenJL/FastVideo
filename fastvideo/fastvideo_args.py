@@ -768,6 +768,9 @@ class RLArgs:
     reward_models: dict[str, float] = field(default_factory=lambda: {"dummy": 1.0})  # reward models (names, weight)
     value_model_path: str = ""  # Path to value model (can be empty to train from scratch)
     value_model_share_backbone: bool = False  # Share transformer backbone between policy and value
+    rl_async_rewards: bool = False  # Compute rewards asynchronously during rollout
+    rl_async_reward_workers: int = 8 # Worker threads for async rewards
+    rl_async_reward_max_queue: int = 0  # 0 disables queue limit
 
     # Training schedule
     warmup_steps: int = 1000  # Collect SFT-style data before starting RL
@@ -871,6 +874,19 @@ class RLArgs:
         parser.add_argument("--rl-normalize-advantages",
                             action=StoreBoolean,
                             help="Normalize advantages before policy update")
+
+        # Async reward computation
+        parser.add_argument("--rl-async-rewards",
+                            action=StoreBoolean,
+                            help="Compute rewards asynchronously during rollout")
+        parser.add_argument("--rl-async-reward-workers",
+                            type=int,
+                            default=RLArgs.rl_async_reward_workers,
+                            help="Number of worker threads for async rewards")
+        parser.add_argument("--rl-async-reward-max-queue",
+                            type=int,
+                            default=RLArgs.rl_async_reward_max_queue,
+                            help="Max queued async reward jobs (0 for unlimited)")
 
         # Policy optimization (GRPO/PPO)
         parser.add_argument("--rl-policy-clip-range",

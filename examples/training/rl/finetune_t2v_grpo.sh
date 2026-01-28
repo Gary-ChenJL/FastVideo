@@ -92,6 +92,7 @@ rl_args=(
   --rl_per_prompt_stat_tracking True  # Enable per-prompt stat tracking
   --rl_warmup_steps 0  # Number of warmup steps (SFT before RL)
   --reward-models "{\"paddle_ocr\": 1.0}" # use video_ocr reward function
+  --rl_async_rewards True
 )
 
 # CFG arguments
