@@ -15,15 +15,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATION_DATASET_FILE="$SCRIPT_DIR/validation.json"
 NUM_GPUS=1
 
-# use GPU 3
-export CUDA_VISIBLE_DEVICES=7
+# use GPU 6 (changed to avoid conflicts)
+export CUDA_VISIBLE_DEVICES=6
 
 
 # Training arguments
 training_args=(
   --tracker_project_name "wan_t2v_grpo"
   --output_dir "checkpoints/wan_t2v_grpo"
-  --max_train_steps 200
+  --max_train_steps 200 # 5000
   --train_batch_size 4
   # --train_sp_batch_size 4
   --train_sp_batch_size 1
@@ -57,7 +57,7 @@ dataset_args=(
   --data_path $RL_DATASET_DIR  # Used as fallback if rl_dataset_path not set
   --rl_dataset_path $RL_DATASET_DIR  # RL prompt dataset directory
   --rl_dataset_type "text"  # "text" or "geneval"
-  --rl_num_image_per_prompt 4  # k parameter (number of samples per prompt)
+  --rl_num_image_per_prompt 4  # k parameter (number of samples per prompt) - reduced for memory
   --dataloader_num_workers 1
 )
 
@@ -86,7 +86,7 @@ rl_args=(
   --rl_mode True
   --rl_algorithm "grpo"
   --rl_kl_beta 0.004  # KL regularization coefficient
-  --rl_policy_clip_range 0.001  # Policy clipping range for GRPO
+  --rl_policy_clip_range 0.001  # Policy clipping range for GRPO (aligned with flow_grpo: 1e-3)
   --rl_kl_reward 0.0  # KL reward coefficient (typically 0)
   --rl_global_std False  # Use per-prompt std (recommended for GRPO)
   --rl_per_prompt_stat_tracking True  # Enable per-prompt stat tracking
