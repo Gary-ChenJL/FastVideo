@@ -3,6 +3,11 @@
 export WANDB_BASE_URL="https://api.wandb.ai"
 export WANDB_MODE=online
 # export FASTVIDEO_ATTENTION_BACKEND=TORCH_SDPA
+# Set PyTorch memory allocator to reduce fragmentation
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+# Use tamoghno's FastVideo instead of the installed (shijie's) version
+export PYTHONPATH="/mnt/fast-disks/hao_lab/tamoghno/FastVideo:$PYTHONPATH"
 
 MODEL_PATH="Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
 RL_DATASET_DIR="data/ocr/"  # Path to RL prompt dataset directory (should contain train.txt and test.txt)
@@ -11,19 +16,19 @@ VALIDATION_DATASET_FILE="$SCRIPT_DIR/validation.json"
 NUM_GPUS=1
 
 # use GPU 3
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=7
 
 
 # Training arguments
 training_args=(
   --tracker_project_name "wan_t2v_grpo"
   --output_dir "checkpoints/wan_t2v_grpo"
-  --max_train_steps 5000
+  --max_train_steps 200
   --train_batch_size 4
   # --train_sp_batch_size 4
   --train_sp_batch_size 1
   --gradient_accumulation_steps 1
-  --num_latent_t 50
+  --num_latent_t 20
   --num_height 240
   --num_width 416
   --num_frames 33
@@ -61,7 +66,7 @@ validation_args=(
   --log_validation True
   --validation_dataset_file $VALIDATION_DATASET_FILE
   --validation_steps 5
-  --validation_sampling_steps "50" 
+  --validation_sampling_steps "20" 
   --validation_guidance_scale "6.0"
 )
 
@@ -69,8 +74,8 @@ validation_args=(
 optimizer_args=(
   --learning_rate 5e-5
   --mixed_precision "bf16"
-  --weight_only_checkpointing_steps 10
-  --training_state_checkpointing_steps 10
+  --weight_only_checkpointing_steps 100
+  --training_state_checkpointing_steps 100
   --weight_decay 1e-4
   --max_grad_norm 1.0
 )
@@ -81,7 +86,7 @@ rl_args=(
   --rl_mode True
   --rl_algorithm "grpo"
   --rl_kl_beta 0.004  # KL regularization coefficient
-  --rl_policy_clip_range 0.2  # Policy clipping range for GRPO
+  --rl_policy_clip_range 0.001  # Policy clipping range for GRPO
   --rl_kl_reward 0.0  # KL reward coefficient (typically 0)
   --rl_global_std False  # Use per-prompt std (recommended for GRPO)
   --rl_per_prompt_stat_tracking True  # Enable per-prompt stat tracking
@@ -91,13 +96,13 @@ rl_args=(
 
 # CFG arguments
 cfg_args=(
-  --guidance_scale 1.0 # use guidance_scale > 1.0 to enable CFG
+  --guidance_scale 4.5 # use guidance_scale > 1.0 to enable CFG
 )
 
 # Miscellaneous arguments
 miscellaneous_args=(
   --inference_mode False
-  --checkpoints_total_limit 3
+  --checkpoints_total_limit 1
   --training_cfg_rate 0.0  # No CFG during training (CFG used in sampling)
   --dit_precision "fp32"
   # --dit_precision "bf16"

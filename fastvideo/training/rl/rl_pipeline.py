@@ -10,6 +10,7 @@ Reference:
     Flow-GRPO: https://github.com/yifan123/flow_grpo
 """
 
+import json
 import math
 import os
 from typing import Any
@@ -17,6 +18,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 
+from fastvideo.configs.sample import SamplingParam
 from fastvideo.fastvideo_args import TrainingArgs
 from fastvideo.logger import init_logger
 from fastvideo.pipelines import ForwardBatch, TrainingBatch
@@ -28,7 +30,7 @@ from .rl_utils import (
     compute_reward_statistics, )
 from fastvideo.training.rl.stat_tracking import PerPromptStatTracker
 from fastvideo.training.training_utils import (get_scheduler, count_trainable)
-from fastvideo.utils import get_compute_dtype
+from fastvideo.utils import get_compute_dtype, shallow_asdict
 from fastvideo.dataset.rl_prompt_dataset import build_rl_prompt_dataloader
 
 from fastvideo.forward_context import set_forward_context
@@ -587,22 +589,70 @@ class RLPipeline(TrainingPipeline):
         # Normalize to list
         if isinstance(prompts, str):
             prompts = [prompts]
-        # Get sampling configuration (hardcoded for now, as per plan)
-        # These should come from config later
-        num_inference_steps = self.training_args.num_latent_t  # config.sample.num_steps - hardcoded
-        # Align sampling settings with the (good) validation pipeline defaults.
-        # If `validation_guidance_scale` is set, prefer it for RL sampling too.
-        guidance_scale = float(
-            self.training_args.validation_guidance_scale
-        ) if self.training_args.validation_guidance_scale else float(
-            self.training_args.rl_args.guidance_scale)
-        num_frames = self.training_args.num_frames
+        # Get sampling configuration - align with validation pipeline
+        # Use validation_sampling_steps if available, otherwise fall back to num_latent_t
+        # if hasattr(self.training_args, 'validation_sampling_steps') and self.training_args.validation_sampling_steps:
+        #     validation_steps = self.training_args.validation_sampling_steps.split(",")
+        #     validation_steps = [int(step) for step in validation_steps if step.strip()]
+        #     num_inference_steps = validation_steps[0] if validation_steps else self.training_args.num_latent_t
+        # else:
+        #     num_inference_steps = self.training_args.num_latent_t
+        
+        # # Use validation_guidance_scale if available (aligns with validation pipeline)
+        # if hasattr(self.training_args, 'validation_guidance_scale') and self.training_args.validation_guidance_scale:
+        #     guidance_scale = float(self.training_args.validation_guidance_scale)
+        # else:
+        #     # Fall back to flow_grpo default for training
+        #     guidance_scale = 4.5
+                
+        # Create SamplingParam like validation pipeline does
+        # This ensures all fields from SamplingParam are included in ForwardBatch
+        sampling_param = SamplingParam.from_pretrained(self.training_args.model_path)
+        
         height = self.training_args.num_height
         width = self.training_args.num_width
+        num_frames = self.training_args.num_frames
         num_videos_per_prompt = 1  # Each prompt in batch generates one video (batch already has repeated prompts if needed)
         sample_time_per_prompt = 1  # config.sample.sample_time_per_prompt - hardcoded
         kl_reward = getattr(self.training_args.rl_args, 'kl_reward', 0.0)
         collect_kl = kl_reward > 0
+        
+
+        num_inference_steps = self.training_args.num_latent_t
+        # Use validation_guidance_scale if available (aligns with validation pipeline)
+        if hasattr(self.training_args, 'validation_guidance_scale') and self.training_args.validation_guidance_scale:
+            guidance_scale = float(self.training_args.validation_guidance_scale)
+        else:
+            # Fall back to hardcoded value (was 6.0, matching validation default)
+            guidance_scale = 6.0
+
+        latents_size = [(num_frames - 1) // 4 + 1,
+                        height // 8, width // 8]
+        n_tokens = latents_size[0] * latents_size[1] * latents_size[2]
+
+        # Compute num_frames using same formula as validation pipeline
+        # This ensures correct video duration (matches validation)
+        temporal_compression_factor = self.training_args.pipeline_config.vae_config.arch_config.temporal_compression_ratio
+        num_frames = (num_inference_steps - 1) * temporal_compression_factor + 1
+        
+        # Set sampling_param fields to match validation pipeline pattern
+        sampling_param.prompt = prompts  # Will be set per-batch in loop
+        sampling_param.height = height
+        sampling_param.width = width
+        sampling_param.num_inference_steps = num_inference_steps
+        sampling_param.data_type = "video"
+        sampling_param.guidance_scale = guidance_scale
+        sampling_param.num_frames = num_frames
+        sampling_param.num_videos_per_prompt = num_videos_per_prompt
+
+        # Debug: Log scheduler configuration
+        scheduler = self.sampling_pipeline.get_module("scheduler")
+        # logger.info(f"RL sampling config (aligned with validation) - num_inference_steps: {num_inference_steps}, guidance_scale: {guidance_scale}, num_frames: {num_frames} (computed from num_latent_t={self.training_args.num_latent_t}, temporal_compression={temporal_compression_factor}), fps: {fps}")
+        if hasattr(scheduler, 'sigmas') and scheduler.sigmas is not None:
+            logger.info(f"Scheduler sigmas (first 5, last 5): {scheduler.sigmas[:5].tolist()} ... {scheduler.sigmas[-5:].tolist()}")
+        
+        # Store fps for use in debug code
+        self._debug_fps = 24
 
         if self.sampling_pipeline is None:
             raise RuntimeError("Sampling pipeline is not initialized")
@@ -612,6 +662,7 @@ class RLPipeline(TrainingPipeline):
         all_log_probs_list = []
         all_kl_list = []
         all_timesteps_list = []
+        all_decoded_videos_list = []  # Store decoded videos from pipeline output (like validation)
         # Placeholder for compatibility with older trajectory collection logic.
         # Kept to avoid NameError if referenced; currently prompt_ids are stored as None.
         all_prompt_ids_list = []
@@ -622,23 +673,29 @@ class RLPipeline(TrainingPipeline):
         with torch.no_grad():
             # Sample multiple times per prompt if needed
             for _ in range(sample_time_per_prompt):
-                # NOTE: Inference pipelines require a positive integer `seed` for
-                # `InputValidationStage` (it derives `seeds` and CPU generators from it).
-                # We keep stochasticity by drawing a fresh seed from the existing
-                # `noise_random_generator` each sampling call.
-                # Align seed with validation when available; fall back to random.
-                seed = getattr(self, "seed", None)
-                if seed is None:
-                    seed = int(
-                        torch.randint(
-                            low=1,
-                            high=2**31 - 1,
-                            size=(1, ),
-                            generator=self.noise_random_generator,
-                            device=self.device,
-                        ).item())
-                else:
-                    seed = int(seed)
+                # NOTE: For batch processing, we need different seeds for each item in the batch.
+                # InputValidationStage will create a list of generators from the base seed.
+                # We use noise_random_generator (NOT validation_random_generator) to ensure
+                # proper stochasticity for RL training.
+                # Generate a base seed for this sampling call
+                base_seed = int(
+                    torch.randint(
+                        low=1,
+                        high=2**31 - 1,
+                        size=(1, ),
+                        generator=self.noise_random_generator,
+                        device=self.device,
+                    ).item())
+                
+                # Set seed in sampling_param - InputValidationStage will use this to create
+                # a list of generators (one per batch item)
+                sampling_param.seed = self.seed
+                
+                # Don't pass a generator - let InputValidationStage create the proper list
+                # of generators from the seed. This ensures each batch item gets its own
+                # generator with a unique seed (seed, seed+1, seed+2, ...)
+                generator = None
+                
                 rl_data = ForwardBatch.RLData(
                     enabled=True,
                     collect_log_probs=True,
@@ -647,18 +704,47 @@ class RLPipeline(TrainingPipeline):
                     store_trajectory=True,
                     keep_trajectory_on_cpu=False,
                 )
+                
+                # Prepare ForwardBatch initialization parameters for logging
+                # Use shallow_asdict to get all fields from sampling_param (like validation)
+                sampling_param_dict = shallow_asdict(sampling_param)
+                batch_init_params = {
+                    **sampling_param_dict,
+                    "latents": None,
+                    "generator": "None (InputValidationStage will create list)",
+                    "n_tokens": n_tokens,
+                    "eta": 0.0,
+                    "VSA_sparsity": self.training_args.VSA_sparsity,
+                    "rl_data": {
+                        "enabled": rl_data.enabled,
+                        "collect_log_probs": rl_data.collect_log_probs,
+                        "collect_kl": rl_data.collect_kl,
+                        "kl_reward": rl_data.kl_reward,
+                        "store_trajectory": rl_data.store_trajectory,
+                        "keep_trajectory_on_cpu": rl_data.keep_trajectory_on_cpu,
+                    },
+                }
+                
+                # Log ForwardBatch initialization parameters
+                import os as os_module
+                os_module.makedirs("/mnt/fast-disks/hao_lab/shijie/mylogs", exist_ok=True)
+                log_file = "/mnt/fast-disks/hao_lab/shijie/mylogs/sampling_forward_batch_params.json"
+                with open(log_file, "w") as f:
+                    json.dump(batch_init_params, f, indent=2, default=str)
+                logger.info(f"Sampling ForwardBatch initialization parameters logged to {log_file}")
+                
+                # Create ForwardBatch using same pattern as validation: **shallow_asdict(sampling_param)
+                # This ensures all fields from SamplingParam are included
+                # Note: generator=None lets InputValidationStage create proper list of generators
+                # (one per batch item) from the seed, ensuring each video gets unique randomness
                 forward_batch = ForwardBatch(
-                    data_type="rl",
-                    prompt=prompts,
-                    negative_prompt="" if guidance_scale > 1.0 else None,
-                    num_frames=num_frames,
-                    height=height,
-                    width=width,
-                    num_inference_steps=num_inference_steps,
-                    guidance_scale=guidance_scale,
-                    num_videos_per_prompt=num_videos_per_prompt,
-                    seed=seed,
-                    rl_data=rl_data,
+                    **shallow_asdict(sampling_param),
+                    latents=None,
+                    generator=None,  # Let InputValidationStage create generators from seed
+                    n_tokens=n_tokens,  # Add n_tokens like validation
+                    eta=0.0,  # Add eta like validation
+                    VSA_sparsity=self.training_args.VSA_sparsity,  # Add VSA_sparsity like validation
+                    rl_data=rl_data,  # RL-specific field (not in validation)
                 )
 
                 orig_output_type = getattr(self.training_args, "output_type",
@@ -667,13 +753,22 @@ class RLPipeline(TrainingPipeline):
                                               "inference_mode", None)
                 orig_dit_cpu_offload = getattr(self.training_args,
                                                "dit_cpu_offload", None)
-                if orig_output_type is not None:
-                    self.training_args.output_type = "latent"
+                # Use full pipeline with decoding (like validation) instead of "latent"
+                # This ensures we use the same decoding path as validation
+                if orig_output_type == "latent":
+                    # Set to "pt" to enable decoding (same as validation pipeline)
+                    self.training_args.output_type = "pt"
+                elif orig_output_type is None:
+                    # If not set, explicitly set to "pt" to ensure decoding
+                    self.training_args.output_type = "pt"
+                # If orig_output_type is already "pt" or something else, keep it
                 if orig_inference_mode is not None:
                     self.training_args.inference_mode = True
                 if orig_dit_cpu_offload is not None:
                     # Mirror validation: we run sampling fully on GPU.
                     self.training_args.dit_cpu_offload = False
+                
+                # Run sampling pipeline with full decoding
                 try:
                     output_batch = self.sampling_pipeline.forward(
                         forward_batch, self.training_args)
@@ -699,11 +794,23 @@ class RLPipeline(TrainingPipeline):
                     raise RuntimeError("RL timesteps were not collected")
                 timesteps = timesteps.repeat(latents.shape[0], 1)
 
+                # Extract decoded videos from pipeline output (same as validation pipeline)
+                # output_batch.output contains decoded videos [B, C, T, H, W] if output_type != "latent"
+                decoded_videos = output_batch.output
+                if decoded_videos is None:
+                    raise RuntimeError(
+                        "Decoded videos not found in pipeline output. "
+                        "Make sure output_type is not set to 'latent'.")
+
                 logger.info("latents.shape: %s", latents.shape)
+                logger.info("decoded_videos.shape: %s", decoded_videos.shape)
                 if log_probs is not None:
                     logger.info("log_probs.shape: %s", log_probs.shape)
                 if kl is not None:
                     logger.info("kl.shape: %s", kl.shape)
+
+                # Set raw_latent_shape for metrics (used by training_pipeline.py)
+                training_batch.raw_latent_shape = latents.shape
 
                 all_latents_list.append(latents)
                 if log_probs is not None:
@@ -711,6 +818,7 @@ class RLPipeline(TrainingPipeline):
                 if kl is not None:
                     all_kl_list.append(kl)
                 all_timesteps_list.append(timesteps)
+                all_decoded_videos_list.append(decoded_videos)
                 all_prompt_ids_list.append(None)
 
         # Concatenate across sample_time_per_prompt dimension (if sample_time_per_prompt > 1)
@@ -724,6 +832,8 @@ class RLPipeline(TrainingPipeline):
             # Store KL if computed
             training_batch.kl = torch.cat(all_kl_list,
                                           dim=0) if all_kl_list else None
+            # Store decoded videos [B * sample_time_per_prompt, C, T, H, W]
+            decoded_videos = torch.cat(all_decoded_videos_list, dim=0)
             # Store prompt_ids (repeat for each sample)
             training_batch.prompt_ids = None
         else:
@@ -734,6 +844,7 @@ class RLPipeline(TrainingPipeline):
             training_batch.timesteps = all_timesteps_list[0]  # [B, num_steps]
             training_batch.kl = all_kl_list[0] if len(
                 all_kl_list) > 0 and all_kl_list[0] is not None else None
+            decoded_videos = all_decoded_videos_list[0]  # [B, C, T, H, W]
             training_batch.prompt_ids = None
 
         # Store old log probs for importance ratio computation
@@ -743,7 +854,7 @@ class RLPipeline(TrainingPipeline):
         training_batch.prompt_embeds = None
         training_batch.negative_prompt_embeds = None
 
-        # Store prompts in input_kwargs for reward computation
+        # Store prompts and decoded videos in input_kwargs (like validation pipeline pattern)
         if training_batch.input_kwargs is None:
             training_batch.input_kwargs = {}
         # Repeat prompts for each sample if sample_time_per_prompt > 1
@@ -755,29 +866,116 @@ class RLPipeline(TrainingPipeline):
             training_batch.input_kwargs["prompts"] = repeated_prompts
         else:
             training_batch.input_kwargs["prompts"] = prompts
+        # Store decoded videos in input_kwargs (same pattern as validation)
+        training_batch.input_kwargs["decoded_videos"] = decoded_videos
+
+# # myregion: Debug: Save decoded video for visual verification
+#         from contextlib import nullcontext
+#         controller = getattr(self, "profiler_controller", None)
+#         region_cm = (controller.region("my region") if controller is not None
+#                      and getattr(controller, "has_profiler", False) else
+#                      nullcontext())
+#         with region_cm:
+#             import os
+#             import numpy as np
+#             import imageio
+#             from fastvideo.distributed import get_world_group
+
+#             # Only save once in distributed runs
+#             if get_world_group().rank == 0:
+#                 out_dir = "/mnt/fast-disks/hao_lab/shijie/mylogs"
+#                 os.makedirs(out_dir, exist_ok=True)
+                
+#                 # Get batch size
+#                 batch_size = decoded_videos.shape[0]
+#                 logger.info(f"Debug region: Saving {batch_size} videos from batch")
+                
+#                 # Convert all videos to numpy and save them
+#                 # videos expected shape: [B, C, T, H, W]
+#                 fps = getattr(self, '_debug_fps', 24)  # Fallback to 24 if not set
+#                 videos_np_list = []
+                
+#                 for batch_idx in range(batch_size):
+#                     vid = decoded_videos[batch_idx].detach().to(torch.float32).cpu()
+#                     # Convert to [T, H, W, C]
+#                     vid = vid.permute(1, 2, 3, 0).contiguous()
+#                     vid_np = vid.numpy()
+
+#                     # Bring into [0, 255] uint8
+#                     if vid_np.min() < 0.0:
+#                         vid_np = (vid_np + 1.0) / 2.0
+#                     vid_np = np.clip(vid_np, 0.0, 1.0)
+#                     vid_np = (vid_np * 255.0).round().astype(np.uint8)
+                    
+#                     # Store for difference calculation (keep in float64 for precision)
+#                     vid_fp64 = vid.detach().to(torch.float64).cpu().numpy()
+#                     if vid_fp64.min() < 0.0:
+#                         vid_fp64 = (vid_fp64 + 1.0) / 2.0
+#                     vid_fp64 = np.clip(vid_fp64, 0.0, 1.0)
+#                     videos_np_list.append(vid_fp64)
+
+#                     # Save video
+#                     out_path = os.path.join(out_dir, f"debug_step0_batch_{batch_idx}.mp4")
+#                     frames = [vid_np[t] for t in range(vid_np.shape[0])]
+#                     imageio.mimsave(out_path, frames, fps=fps)
+#                     logger.info(f"Saved debug video batch_{batch_idx} with {vid_np.shape[0]} frames at {fps} fps (duration: {vid_np.shape[0]/fps:.2f}s) to {out_path}")
+
+#                 # Calculate and print differences between consecutive videos
+#                 if batch_size >= 2:
+#                     logger.info("=" * 80)
+#                     logger.info("Video Difference Statistics (calculated in float64 for precision):")
+#                     logger.info("=" * 80)
+                    
+#                     for i in range(batch_size - 1):
+#                         vid_i = videos_np_list[i]
+#                         vid_j = videos_np_list[i + 1]
+                        
+#                         # Calculate element-wise absolute difference in float64
+#                         diff = np.abs(vid_i.astype(np.float64) - vid_j.astype(np.float64))
+                        
+#                         # Calculate statistics
+#                         avg_diff = np.mean(diff)
+#                         max_diff = np.max(diff)
+#                         min_diff = np.min(diff)
+#                         sum_diff = np.sum(diff)
+#                         total_elements = diff.size
+                        
+#                         logger.info(f"Difference between video {i} and {i+1}:")
+#                         logger.info(f"  Total elements: {total_elements:,}")
+#                         logger.info(f"  Average difference: {avg_diff:.10f}")
+#                         logger.info(f"  Max difference: {max_diff:.10f}")
+#                         logger.info(f"  Min difference: {min_diff:.10f}")
+#                         logger.info(f"  Sum difference: {sum_diff:.10f}")
+#                         logger.info(f"  Relative difference (avg/max_value): {avg_diff:.10f} ({avg_diff * 100:.6f}%)")
+#                         logger.info("-" * 80)
+                    
+#                     logger.info("=" * 80)
+
+#             raise KeyboardInterrupt(
+#                 "Debug stop after saving decoded video (my region).")
+# # endregion
 
         logger.info(
-            "Trajectory collection complete: batch_size=%d, latents_shape=%s, log_probs_shape=%s",
+            "Trajectory collection complete: batch_size=%d, latents_shape=%s, log_probs_shape=%s, decoded_videos_shape=%s",
             training_batch.latents.shape[0], training_batch.latents.shape,
-            training_batch.log_probs.shape)
+            training_batch.log_probs.shape, decoded_videos.shape)
 
         return training_batch
 
     def compute_rewards(self, training_batch: TrainingBatch) -> TrainingBatch:
         """
-        Compute rewards by decoding latents to videos and calling reward models.
+        Compute rewards using decoded videos from collect_trajectories and calling reward models.
         
         This method implements Step 5 of GRPO training:
-        1. Extracts final latents from the denoising trajectory
-        2. Decodes latents to videos using VAE
-        3. Calls reward models with decoded videos
-        4. Applies KL reward penalty if configured
-        5. Stores reward scores and statistics in TrainingBatch
+        1. Uses decoded videos from collect_trajectories (decoded using full pipeline, same as validation)
+        2. Calls reward models with decoded videos
+        3. Applies KL reward penalty if configured
+        4. Stores reward scores and statistics in TrainingBatch
         
         Ported from FlowGRPO's reward computation to work with FastVideo's TrainingBatch.
         
         Args:
-            training_batch: Training batch with latents [B, num_steps+1, C, T, H, W]
+            training_batch: Training batch with decoded_videos in input_kwargs from collect_trajectories
         
         Returns:
             Updated training_batch with:
@@ -790,72 +988,24 @@ class RLPipeline(TrainingPipeline):
                 "Reward models not initialized. Call initialize_training_pipeline first."
             )
 
-        # Get final latents (after all denoising steps)
-        # training_batch.latents is [B, num_steps+1, C, T, H, W]
-        # We want the final latents at index -1: [B, C, T, H, W]
-        logger.info(
-            f"training_batch.latents.shape: {training_batch.latents.shape}")
-        final_latents = training_batch.latents[:, -1]  # [B, C, T, H, W]
+        # Get decoded videos from input_kwargs (same pattern as validation pipeline)
+        if training_batch.input_kwargs is None or "decoded_videos" not in training_batch.input_kwargs:
+            raise RuntimeError(
+                "Decoded videos not found in training_batch.input_kwargs. "
+                "Make sure collect_trajectories stores decoded videos in input_kwargs."
+            )
+        
+        videos = training_batch.input_kwargs["decoded_videos"]  # [B, C, T, H, W]
+        logger.info(f"Using decoded videos from collect_trajectories: shape={videos.shape}")
 
-        # Decode latents to videos using the same decoding logic as inference.
-        from fastvideo.pipelines.stages.decoding import DecodingStage
-
-        vae = self.get_module("vae")
-        decoding_stage = DecodingStage(vae=vae)
-        with torch.no_grad():
-            videos = decoding_stage.decode(final_latents, self.training_args)
-
-# myregion debug decoded video
-        from contextlib import nullcontext
-        controller = getattr(self, "profiler_controller", None)
-        region_cm = (controller.region("my region") if controller is not None
-                     and getattr(controller, "has_profiler", False) else
-                     nullcontext())
-        with region_cm:
-            import os
-            import numpy as np
-            import imageio
-            from fastvideo.distributed import get_world_group
-
-            # Only save once in distributed runs
-            if get_world_group().rank == 0:
-                out_dir = "/mnt/fast-disks/hao_lab/shijie/mylogs"
-                os.makedirs(out_dir, exist_ok=True)
-                out_path = os.path.join(out_dir, "debug_step0.mp4")
-
-                # videos expected shape: [B, C, T, H, W]
-                vid0 = videos[0].detach().to(torch.float32).cpu()
-                # Convert to [T, H, W, C]
-                vid0 = vid0.permute(1, 2, 3, 0).contiguous()
-                vid_np = vid0.numpy()
-
-                # Bring into [0, 255] uint8
-                if vid_np.min() < 0.0:
-                    vid_np = (vid_np + 1.0) / 2.0
-                vid_np = np.clip(vid_np, 0.0, 1.0)
-                vid_np = (vid_np * 255.0).round().astype(np.uint8)
-
-                # imageio expects list of frames [H, W, C]
-                frames = [vid_np[t] for t in range(vid_np.shape[0])]
-                imageio.mimsave(out_path, frames, fps=8)
-
-                logger.info("Saved debug video to %s", out_path)
-
-            raise KeyboardInterrupt(
-                "Debug stop after saving decoded video (my region).")
-
-
-# endregion
-
-# Get prompts for reward computation
+        # Get prompts for reward computation
         prompts = training_batch.input_kwargs.get(
             "prompts") if training_batch.input_kwargs else None
         if prompts is None:
             raise ValueError(
                 "Prompts not found in training_batch.input_kwargs. Required for reward computation."
             )
-
-        logger.info(f"videos.shape: {videos.shape}")
+        
         # Compute rewards using reward models
         # Note: reward_models.compute_reward expects videos [B, C, T, H, W] and prompts [B]
         reward_scores = self.reward_models.compute_reward(videos, prompts)
@@ -881,6 +1031,13 @@ class RLPipeline(TrainingPipeline):
                     reward_stats["reward_mean"], reward_stats["reward_std"],
                     kl_reward)
         logger.info(f"reward_scores: {reward_scores}")
+        
+        # Log raw rewards with unique identifier for parsing (rewards are [B], sum them for graphing)
+        if reward_scores.numel() > 0:
+            reward_sum = reward_scores.sum().item()
+            reward_list = reward_scores.cpu().tolist()
+            logger.info(f"RL_METRIC_FASTVIDEO_REWARD step={getattr(training_batch, 'current_timestep', 0)} "
+                       f"reward_sum={reward_sum:.6f} reward_list={reward_list}")
 
         return training_batch
 
@@ -1026,6 +1183,12 @@ class RLPipeline(TrainingPipeline):
 
         scheduler = self.get_module("scheduler")
         transformer = self.get_module("transformer")
+        
+        # Ensure scheduler is initialized with correct number of inference steps
+        # Use the same num_inference_steps as sampling to ensure sigmas and timesteps are aligned
+        num_inference_steps = self.training_args.num_latent_t
+        if not hasattr(scheduler, 'timesteps') or scheduler.timesteps is None or len(scheduler.timesteps) != num_inference_steps + 1:
+            scheduler.set_timesteps(num_inference_steps, device=self.device)
 
         # Prepare latent input - cast to compute dtype for FSDP
         compute_dtype = get_compute_dtype()
@@ -1092,16 +1255,18 @@ class RLPipeline(TrainingPipeline):
             self, training_batch: TrainingBatch
     ) -> tuple[torch.Tensor, dict[str, Any]]:
         """
-        Compute GRPO loss (policy loss + KL loss).
+        Compute GRPO loss (policy loss + KL loss) with per-timestep backward to avoid OOM.
         
         This function implements the GRPO training objective:
         1. Recomputes log probabilities for current policy at each timestep
         2. Computes reference log probabilities with adapter disabled (if using LoRA)
         3. Computes policy loss with clipping
         4. Computes KL loss using reference model
-        5. Returns total loss and metrics
+        5. Does backward() after each timestep to free activations (aligned with flow_grpo)
+        6. Returns accumulated metrics
         
         Ported from FlowGRPO's training loop to work with FastVideo's TrainingBatch.
+        Key difference: Does backward() after each timestep to prevent OOM.
         
         Args:
             training_batch: Training batch with:
@@ -1113,7 +1278,7 @@ class RLPipeline(TrainingPipeline):
                 - negative_prompt_embeds: [B, seq_len, hidden_dim] - negative embeddings (optional)
         
         Returns:
-            total_loss: Total loss for backward pass
+            total_loss: Average total loss (for logging/metrics only, backward already done)
             metrics: Dictionary with loss components and diagnostics
         """
 
@@ -1124,7 +1289,7 @@ class RLPipeline(TrainingPipeline):
         clip_range = self.training_args.rl_args.grpo_policy_clip_range
         kl_beta = self.training_args.rl_args.kl_beta
         guidance_scale = self.guidance_scale
-        adv_clip_max = 10.0  # Hardcoded (advantage clipping)
+        adv_clip_max = 5.0  # Aligned with flow_grpo config.train.adv_clip_max = 5
 
         # Get data from training batch
         latents = training_batch.latents  # [B, num_steps+1, C, T, H, W]
@@ -1136,6 +1301,9 @@ class RLPipeline(TrainingPipeline):
         # If not stored, recompute from prompts
         if training_batch.prompt_embeds is not None:
             prompt_embeds = training_batch.prompt_embeds
+            # Also set encoder_hidden_states for metrics compatibility
+            if training_batch.encoder_hidden_states is None:
+                training_batch.encoder_hidden_states = prompt_embeds
         elif training_batch.encoder_hidden_states is not None:
             prompt_embeds = training_batch.encoder_hidden_states
         else:
@@ -1172,6 +1340,8 @@ class RLPipeline(TrainingPipeline):
                 )
                 # prompt_embeds = outputs.last_hidden_state.to(self.transformer.dtype)
                 prompt_embeds = outputs.last_hidden_state
+                # Set encoder_hidden_states for metrics compatibility
+                training_batch.encoder_hidden_states = prompt_embeds
 
         # Get negative prompt embeddings
         negative_prompt_embeds = training_batch.negative_prompt_embeds
@@ -1201,12 +1371,17 @@ class RLPipeline(TrainingPipeline):
                 negative_prompt_embeds = neg_outputs.last_hidden_state
 
         # Handle advantages shape: if [B], expand to [B, num_steps]
+        # In flow_grpo, advantages are [B, num_steps] or [B, 1] - they should match timesteps
         if advantages.dim() == 1:
+            # Expand to [B, num_steps] to match timesteps shape
             advantages = advantages.unsqueeze(1).expand(-1, timesteps.shape[1])
+        elif advantages.dim() == 2 and advantages.shape[1] == 1:
+            # If [B, 1], expand to [B, num_steps]
+            advantages = advantages.expand(-1, timesteps.shape[1])
 
         batch_size, num_steps = timesteps.shape
 
-        # Accumulate losses across timesteps
+        # Accumulate metrics across timesteps (for logging only, losses are backpropped immediately)
         policy_losses = []
         kl_losses = []
         clip_fractions = []
@@ -1216,7 +1391,11 @@ class RLPipeline(TrainingPipeline):
         # Get transformer for reference model computation
         transformer = self.get_module("transformer")
 
-        # Loop over timesteps
+        # Scale factor for loss: average across timesteps and gradient accumulation steps
+        loss_scale = 1.0 / (num_steps * self.training_args.gradient_accumulation_steps)
+
+        # Loop over timesteps - do backward() after each timestep to free activations
+        # This matches flow_grpo's approach and prevents OOM from accumulating activations
         for j in range(num_steps):
             # Get latents and next_latents for this timestep
             latents_j = latents[:, j]  # [B, C, T, H, W]
@@ -1224,6 +1403,18 @@ class RLPipeline(TrainingPipeline):
             timesteps_j = timesteps[:, j]  # [B]
             old_log_probs_j = old_log_probs[:, j]  # [B]
             advantages_j = advantages[:, j]  # [B]
+
+            # Debug: Check for NaN/Inf in inputs
+            if j == 0:
+                logger.info(f"Debug timestep {j}: old_log_probs_j stats: min={old_log_probs_j.min().item():.6f}, max={old_log_probs_j.max().item():.6f}, mean={old_log_probs_j.mean().item():.6f}, has_nan={torch.isnan(old_log_probs_j).any().item()}, has_inf={torch.isinf(old_log_probs_j).any().item()}")
+                logger.info(f"Debug timestep {j}: advantages_j stats: min={advantages_j.min().item():.6f}, max={advantages_j.max().item():.6f}, mean={advantages_j.mean().item():.6f}, has_nan={torch.isnan(advantages_j).any().item()}, has_inf={torch.isinf(advantages_j).any().item()}")
+                logger.info(f"Debug timestep {j}: timesteps_j values: {timesteps_j.cpu().tolist()}")
+                scheduler = self.get_module("scheduler")
+                logger.info(f"Debug timestep {j}: scheduler.timesteps (first 5, last 5): {scheduler.timesteps[:5].cpu().tolist()} ... {scheduler.timesteps[-5:].cpu().tolist()}")
+                logger.info(f"Debug timestep {j}: scheduler.sigmas (first 5, last 5): {scheduler.sigmas[:5].cpu().tolist()} ... {scheduler.sigmas[-5:].cpu().tolist()}")
+                # Check what index_for_timestep returns
+                step_idx_0 = scheduler.index_for_timestep(timesteps_j[0].item())
+                logger.info(f"Debug timestep {j}: index_for_timestep({timesteps_j[0].item()}) = {step_idx_0}, len(sigmas)={len(scheduler.sigmas)}")
 
             # Compute log probability with current policy
             prev_sample, log_prob, prev_sample_mean, std_dev_t, dt = self._compute_log_prob_for_timestep(
@@ -1235,12 +1426,37 @@ class RLPipeline(TrainingPipeline):
                 negative_prompt_embeds,
                 guidance_scale,
                 return_dt_and_std_dev_t=True)
+            
+            # Debug: Check shapes and values for alignment with flow_grpo
+            if j == 0:
+                logger.info(f"Debug timestep {j}: prev_sample_mean.shape={prev_sample_mean.shape}")
+                logger.info(f"Debug timestep {j}: std_dev_t.shape={std_dev_t.shape}, dt.shape={dt.shape}")
+            
+            # Debug: Check for NaN/Inf in computed log_prob
+            if j == 0:
+                logger.info(f"Debug timestep {j}: log_prob stats: min={log_prob.min().item():.6f}, max={log_prob.max().item():.6f}, mean={log_prob.mean().item():.6f}, has_nan={torch.isnan(log_prob).any().item()}, has_inf={torch.isinf(log_prob).any().item()}")
+                logger.info(f"Debug timestep {j}: std_dev_t stats: min={std_dev_t.min().item():.6f}, max={std_dev_t.max().item():.6f}, mean={std_dev_t.mean().item():.6f}, has_nan={torch.isnan(std_dev_t).any().item()}, has_inf={torch.isinf(std_dev_t).any().item()}")
+                logger.info(f"Debug timestep {j}: dt stats: min={dt.min().item():.6f}, max={dt.max().item():.6f}, mean={dt.mean().item():.6f}, has_nan={torch.isnan(dt).any().item()}, has_inf={torch.isinf(dt).any().item()}")
 
             # Compute reference log probability with adapter disabled (if using LoRA)
+            # Aligned with flow_grpo: use transformer.module.disable_adapter() if wrapped, or pipeline.disable_adapter()
             if kl_beta > 0:
                 with torch.no_grad():
-                    if hasattr(transformer, 'disable_adapter'):
-                        with transformer.disable_adapter():
+                    # Try to disable adapter through pipeline (FastVideo's LoRA implementation)
+                    # or through transformer if it's a PeftModel (flow_grpo style)
+                    disable_adapter_ctx = None
+                    if hasattr(self, 'disable_adapter'):
+                        # FastVideo LoRA pipeline has disable_adapter method
+                        disable_adapter_ctx = self.disable_adapter()
+                    elif hasattr(transformer, 'module') and hasattr(transformer.module, 'disable_adapter'):
+                        # Wrapped transformer with PeftModel (like in flow_grpo with Accelerate)
+                        disable_adapter_ctx = transformer.module.disable_adapter()
+                    elif hasattr(transformer, 'disable_adapter'):
+                        # Direct PeftModel (not wrapped)
+                        disable_adapter_ctx = transformer.disable_adapter()
+                    
+                    if disable_adapter_ctx is not None:
+                        with disable_adapter_ctx:
                             _, _, prev_sample_mean_ref, std_dev_t_ref, dt_ref = self._compute_log_prob_for_timestep(
                                 latents_j,
                                 next_latents_j,
@@ -1251,22 +1467,24 @@ class RLPipeline(TrainingPipeline):
                                 guidance_scale,
                                 return_dt_and_std_dev_t=True)
                     else:
-                        # No adapter to disable, use current model (shouldn't happen in practice)
+                        # No adapter to disable, use current model (shouldn't happen in practice with LoRA)
+                        if j == 0:
+                            logger.warning(f"Debug timestep {j}: No disable_adapter method found! Using current model (KL loss will be 0)")
                         prev_sample_mean_ref = prev_sample_mean.detach()
                         std_dev_t_ref = std_dev_t.detach()
                         dt_ref = dt.detach()
 
-                # Compute KL loss: KL = (mean_diff)^2 / (2 * (std_dev_t * dt)^2)
+                # Compute KL loss: KL = (mean_diff)^2 / (2 * (std_dev_t * dt_ref)^2)
                 # FlowGRPO uses: kl_loss = ((prev_sample_mean - prev_sample_mean_ref) ** 2).mean(dim=(1,2,3), keepdim=True) / (2 * (std_dev_t * dt_ref) ** 2)
-                # For videos [B, C, T, H, W], we average over all spatial/channel dims except batch
+                # For videos [B, C, T, H, W], we average over all spatial/channel/temporal dims except batch
                 # Note: std_dev_t and dt_ref are already broadcast to [B, 1, 1, 1, 1]
+                # Aligned with flow_grpo: no epsilon added to match exactly
                 kl_loss_j = ((prev_sample_mean - prev_sample_mean_ref)**2).mean(
                     dim=(1, 2, 3, 4),
-                    keepdim=True) / (2 * (std_dev_t * dt_ref)**2 + 1e-8)
+                    keepdim=True) / (2 * (std_dev_t * dt_ref)**2)
                 kl_loss_j = kl_loss_j.mean()  # Average over batch dimension
-                kl_losses.append(kl_loss_j)
             else:
-                kl_losses.append(torch.tensor(0.0, device=log_prob.device))
+                kl_loss_j = torch.tensor(0.0, device=log_prob.device)
 
             # GRPO policy loss computation
             # Clip advantages
@@ -1284,10 +1502,23 @@ class RLPipeline(TrainingPipeline):
                 1.0 + clip_range,
             )
             policy_loss_j = torch.maximum(unclipped_loss, clipped_loss).mean()
-            policy_losses.append(policy_loss_j)
 
-            # Compute diagnostics
+            # Total loss for this timestep (scaled for averaging)
+            total_loss_j = (policy_loss_j + kl_beta * kl_loss_j) * loss_scale
+
+            # Backward pass after each timestep to free activations (aligned with flow_grpo)
+            # This prevents OOM by not accumulating activations across all timesteps
+            with self.tracker.timed("timing/forward_backward"), set_forward_context(
+                    current_timestep=j,
+                    attn_metadata=None,
+                    forward_batch=None):
+                total_loss_j.backward()
+
+            # Store metrics for logging (detached to avoid keeping computation graph)
             with torch.no_grad():
+                policy_losses.append(policy_loss_j.detach())
+                kl_losses.append(kl_loss_j.detach())
+
                 # Clip fraction
                 clip_fraction_j = ((ratio < 1.0 - clip_range) |
                                    (ratio > 1.0 + clip_range)).float().mean()
@@ -1300,13 +1531,62 @@ class RLPipeline(TrainingPipeline):
                 approx_kl_j = 0.5 * torch.mean((log_prob - old_log_probs_j)**2)
                 approx_kls.append(approx_kl_j)
 
-        # Average losses across timesteps
+            # Explicitly delete intermediate tensors to free memory
+            # This helps prevent OOM by freeing activations after backward()
+            del prev_sample, log_prob, prev_sample_mean, std_dev_t, dt
+            del advantages_j_clipped, ratio, unclipped_loss, clipped_loss, policy_loss_j, total_loss_j, kl_loss_j
+            if kl_beta > 0:
+                del prev_sample_mean_ref, std_dev_t_ref, dt_ref
+            # Force garbage collection periodically to free GPU memory
+            if j % 5 == 0:
+                torch.cuda.empty_cache()
+
+        # Average losses across timesteps (for metrics only, backward already done)
         policy_loss = torch.stack(policy_losses).mean()
         kl_loss = torch.stack(kl_losses).mean(
         ) if kl_beta > 0 else torch.tensor(0.0, device=policy_loss.device)
 
-        # Total loss
+        # Total loss (for logging/metrics only)
         total_loss = policy_loss + kl_beta * kl_loss
+
+# myregion: Debug: Print GRPO loss for one step
+        logger.info("=" * 80)
+        logger.info("GRPO Loss Debug (One Step)")
+        logger.info("=" * 80)
+        
+        # Check for NaN/Inf before printing
+        policy_loss_val = policy_loss.item() if not torch.isnan(policy_loss) and not torch.isinf(policy_loss) else float('nan')
+        kl_loss_val = kl_loss.item() if kl_beta > 0 and not torch.isnan(kl_loss) and not torch.isinf(kl_loss) else (0.0 if kl_beta == 0 else float('nan'))
+        total_loss_val = total_loss.item() if not torch.isnan(total_loss) and not torch.isinf(total_loss) else float('nan')
+        
+        logger.info(f"Policy Loss: {policy_loss_val:.6f}")
+        logger.info(f"KL Loss: {kl_loss_val:.6f}")
+        logger.info(f"Total Loss: {total_loss_val:.6f}")
+        logger.info(f"Clip Fraction: {torch.stack(clip_fractions).mean().item():.6f}")
+        
+        importance_ratio_mean_val = torch.stack(importance_ratios).mean().item() if not torch.isnan(torch.stack(importance_ratios).mean()) else float('nan')
+        logger.info(f"Importance Ratio Mean: {importance_ratio_mean_val:.6f}")
+        
+        approx_kl_val = torch.stack(approx_kls).mean().item() if not torch.isnan(torch.stack(approx_kls).mean()) else float('nan')
+        logger.info(f"Approx KL: {approx_kl_val:.6f}")
+        logger.info(f"KL Beta: {kl_beta}")
+        logger.info(f"Clip Range: {clip_range}")
+        logger.info(f"Adv Clip Max: {adv_clip_max}")
+        logger.info(f"Batch Size: {batch_size}, Num Steps: {num_steps}")
+        logger.info("=" * 80)
+        
+        # Print per-timestep breakdown for first step
+        if len(policy_losses) > 0:
+            logger.info("Per-timestep breakdown (first 3 steps):")
+            for j in range(min(3, len(policy_losses))):
+                p_loss = policy_losses[j].item() if not torch.isnan(policy_losses[j]) else float('nan')
+                k_loss = kl_losses[j].item() if kl_beta > 0 and not torch.isnan(kl_losses[j]) else (0.0 if kl_beta == 0 else float('nan'))
+                ratio = importance_ratios[j].item() if not torch.isnan(importance_ratios[j]) else float('nan')
+                logger.info(f"  Step {j}: policy_loss={p_loss:.6f}, "
+                          f"kl_loss={k_loss:.6f}, "
+                          f"ratio_mean={ratio:.6f}")
+        
+# endregion
 
         # Compute metrics
         metrics = {
@@ -1368,8 +1648,11 @@ class RLPipeline(TrainingPipeline):
             training_batch = self.compute_advantages(training_batch)
 
             # 5. Compute GRPO loss
+            # Note: _compute_grpo_loss now does backward() internally after each timestep
+            # to prevent OOM from accumulating activations (aligned with flow_grpo)
             if training_batch.log_probs is not None and training_batch.old_log_probs is not None:
                 # Compute GRPO loss (policy loss + KL loss)
+                # Backward is done inside _compute_grpo_loss after each timestep
                 total_loss, metrics = self._compute_grpo_loss(training_batch)
 
                 # Store metrics in training batch
@@ -1382,24 +1665,29 @@ class RLPipeline(TrainingPipeline):
                 training_batch.value_loss = 0.0  # GRPO doesn't use value loss
                 training_batch.entropy = 0.0  # Not computed for now
 
-                with self.tracker.timed(
-                        "timing/forward_backward"), set_forward_context(
-                            current_timestep=training_batch.current_timestep,
-                            attn_metadata=training_batch.attn_metadata):
-
-                    # Backward pass with scaled loss
-                    scaled_loss = total_loss / self.training_args.gradient_accumulation_steps
-                    scaled_loss.backward()
-
                 mem_used, power_draw = os.popen(
                     "nvidia-smi -i 3 --query-gpu=memory.used,power.draw --format=csv,noheader,nounits"
                 ).read().strip().split(", ")
-                logger.info(f"After loss.backward(), VRAM used: {mem_used} MiB")
+                logger.info(f"After GRPO loss computation (backward done per-timestep), VRAM used: {mem_used} MiB")
 
                 # Accumulate total loss
                 if training_batch.total_loss is None:
                     training_batch.total_loss = 0.0
                 training_batch.total_loss += total_loss.item()
+                
+                # Log loss with unique identifier for parsing (loss is a single value)
+                step = training_batch.current_timestep if hasattr(training_batch, 'current_timestep') else (getattr(self, 'current_trainstep', 0) if hasattr(self, 'current_trainstep') else 0)
+                total_loss_value = total_loss.item()
+                logger.info(f"RL_METRIC_FASTVIDEO_LOSS step={step} total_loss={total_loss_value:.6f}")
+                
+                # Log step metrics for graphing (format: STEP_METRIC step=<step> reward_mean=<value> reward_std=<value> policy_loss=<value> kl_loss=<value> total_loss=<value>)
+                # Use current_timestep from training_batch (set in training loop)
+                reward_mean = training_batch.reward_mean if hasattr(training_batch, 'reward_mean') else 0.0
+                reward_std = training_batch.reward_std if hasattr(training_batch, 'reward_std') else 0.0
+                logger.info(f"STEP_METRIC step={step} reward_mean={reward_mean:.6f} reward_std={reward_std:.6f} "
+                          f"policy_loss={metrics.get('policy_loss', 0.0):.6f} kl_loss={metrics.get('kl_loss', 0.0):.6f} "
+                          f"total_loss={total_loss_value:.6f} importance_ratio={metrics.get('importance_ratio_mean', 1.0):.6f} "
+                          f"clip_fraction={metrics.get('clip_fraction', 0.0):.6f}")
 
         # Clip gradients
         training_batch = self._clip_grad_norm(training_batch)

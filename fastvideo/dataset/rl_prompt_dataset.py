@@ -6,9 +6,7 @@ import os
 
 
 FIXED_DEBUG_PROMPT = (
-    'A realistic photograph of a fast food drive-thru menu board at dusk, '
-    'featuring a bold and colorful advertisement that reads "Try Our New Burger" '
-    'with an appetizing image of the burger below.'
+    "A detailed, vintage-style alien abduction pamphlet titled Probing FAQs, featuring illustrations of extraterrestrial beings and spacecraft, alongside text explaining common questions and procedures."
 )
 
 
@@ -26,8 +24,8 @@ class TextPromptDataset(Dataset):
     def __getitem__(self, idx):
         # Debug mode: always return the same prompt for evaluation.
         # Keep dataset length/sampling behavior unchanged.
-        # return {"prompt": self.prompts[idx], "metadata": {}}
-        return {"prompt": FIXED_DEBUG_PROMPT, "metadata": {}}
+        return {"prompt": self.prompts[idx], "metadata": {}}
+        # return {"prompt": FIXED_DEBUG_PROMPT, "metadata": {}}
 
     @staticmethod
     def collate_fn(examples):
@@ -51,8 +49,8 @@ class GenevalPromptDataset(Dataset):
     def __getitem__(self, idx):
         # Debug mode: always return the same prompt for evaluation.
         # Keep metadata passthrough unchanged.
-        # return {"prompt": self.prompts[idx], "metadata": self.metadatas[idx]}
-        return {"prompt": FIXED_DEBUG_PROMPT, "metadata": self.metadatas[idx]}
+        return {"prompt": self.prompts[idx], "metadata": self.metadatas[idx]}
+        # return {"prompt": FIXED_DEBUG_PROMPT, "metadata": self.metadatas[idx]}
 
     @staticmethod
     def collate_fn(examples):
@@ -184,4 +182,3 @@ def build_rl_prompt_dataloader(
     )
     
     return train_dataloader, test_dataloader, train_dataset, test_dataset
-
