@@ -771,6 +771,7 @@ class RLArgs:
     rl_async_rewards: bool = False  # Compute rewards asynchronously during rollout
     rl_async_reward_workers: int = 8 # Worker threads for async rewards
     rl_async_reward_max_queue: int = 0  # 0 disables queue limit
+    rl_async_chunk_size: int = 2  # Chunk size for async reward overlap
 
     # Training schedule
     warmup_steps: int = 1000  # Collect SFT-style data before starting RL
@@ -887,6 +888,10 @@ class RLArgs:
                             type=int,
                             default=RLArgs.rl_async_reward_max_queue,
                             help="Max queued async reward jobs (0 for unlimited)")
+        parser.add_argument("--rl-async-chunk-size",
+                            type=int,
+                            default=RLArgs.rl_async_chunk_size,
+                            help="Chunk size for async reward overlap")
 
         # Policy optimization (GRPO/PPO)
         parser.add_argument("--rl-policy-clip-range",
