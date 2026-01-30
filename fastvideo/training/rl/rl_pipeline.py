@@ -596,7 +596,8 @@ class RLPipeline(TrainingPipeline):
         self._shutdown_async_rewards()
 
     def _compute_reward_async(self, video: torch.Tensor, prompt: str,
-                              stream_idx: int) -> float:
+                              stream_idx: int,
+                              event: torch.cuda.Event | None = None) -> float:
         """Compute a single-sample reward in a worker thread."""
         if self.reward_models is None:
             raise RuntimeError(
@@ -613,6 +614,8 @@ class RLPipeline(TrainingPipeline):
         with torch.no_grad():
             if stream is not None:
                 with torch.cuda.stream(stream):
+                    if event is not None:
+                        stream.wait_event(event)
                     reward = self.reward_models.compute_reward(
                         video.unsqueeze(0), [prompt])
                 stream.synchronize()
@@ -633,6 +636,11 @@ class RLPipeline(TrainingPipeline):
                 f"Decoded videos batch size {decoded_videos.shape[0]} does not match prompts length {len(prompts)}"
             )
 
+        event = None
+        if isinstance(self.device, torch.device) and self.device.type == "cuda":
+            event = torch.cuda.Event()
+            event.record()
+
         futures: list[concurrent.futures.Future] = []
         max_queue = self._reward_max_queue
         for idx, (video, prompt) in enumerate(
@@ -640,7 +648,7 @@ class RLPipeline(TrainingPipeline):
             if max_queue > 0 and len(futures) >= max_queue:
                 futures.pop(0).result()
             future = self._reward_executor.submit(self._compute_reward_async,
-                                                  video, prompt, idx)
+                                                  video, prompt, idx, event)
             futures.append(future)
 
         if training_batch.input_kwargs is None:
@@ -799,7 +807,9 @@ class RLPipeline(TrainingPipeline):
                     ).item())
 
                 total_prompts = len(prompts)
-                chunk_size = 1 if self._async_reward_enabled else total_prompts
+                chunk_size = (
+                    getattr(self.training_args.rl_args, "rl_async_chunk_size",
+                            1) if self._async_reward_enabled else total_prompts)
 
                 for start_idx in range(0, total_prompts, chunk_size):
                     end_idx = min(start_idx + chunk_size, total_prompts)
