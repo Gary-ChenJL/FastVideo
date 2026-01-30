@@ -859,8 +859,8 @@ class RLPipeline(TrainingPipeline):
 
                     # Log ForwardBatch initialization parameters
                     import os as os_module
-                    os_module.makedirs("/mnt/fast-disks/hao_lab/shijie/mylogs", exist_ok=True)
-                    log_file = "/mnt/fast-disks/hao_lab/shijie/mylogs/sampling_forward_batch_params.json"
+                    os_module.makedirs("/mnt/fast-disks/hao_lab/tamoghno/mylogs", exist_ok=True)
+                    log_file = "/mnt/fast-disks/hao_lab/tamoghno/mylogs/sampling_forward_batch_params.json"
                     with open(log_file, "w") as f:
                         json.dump(batch_init_params, f, indent=2, default=str)
                     logger.info(f"Sampling ForwardBatch initialization parameters logged to {log_file}")
@@ -958,31 +958,14 @@ class RLPipeline(TrainingPipeline):
                         self._submit_async_rewards(training_batch, decoded_videos,
                                                    chunk_prompts)
 
-        # Concatenate across sample_time_per_prompt dimension (if sample_time_per_prompt > 1)
-        if sample_time_per_prompt > 1:
-            # Shape: [B * sample_time_per_prompt, num_steps+1, C, T, H, W]
-            training_batch.latents = torch.cat(all_latents_list, dim=0)
-            # Shape: [B * sample_time_per_prompt, num_steps]
-            training_batch.log_probs = torch.cat(all_log_probs_list, dim=0)
-            # Shape: [B * sample_time_per_prompt, num_steps]
-            training_batch.timesteps = torch.cat(all_timesteps_list, dim=0)
-            # Store KL if computed
-            training_batch.kl = torch.cat(all_kl_list,
-                                          dim=0) if all_kl_list else None
-            # Store decoded videos [B * sample_time_per_prompt, C, T, H, W]
-            decoded_videos = torch.cat(all_decoded_videos_list, dim=0)
-            # Store prompt_ids (repeat for each sample)
-            training_batch.prompt_ids = None
-        else:
-            # Single sample per prompt
-            training_batch.latents = all_latents_list[
-                0]  # [B, num_steps+1, C, T, H, W]
-            training_batch.log_probs = all_log_probs_list[0]  # [B, num_steps]
-            training_batch.timesteps = all_timesteps_list[0]  # [B, num_steps]
-            training_batch.kl = all_kl_list[0] if len(
-                all_kl_list) > 0 and all_kl_list[0] is not None else None
-            decoded_videos = all_decoded_videos_list[0]  # [B, C, T, H, W]
-            training_batch.prompt_ids = None
+        # Concatenate across chunks and sample_time_per_prompt if needed.
+        # This keeps batch sizes consistent when async chunking is enabled.
+        training_batch.latents = torch.cat(all_latents_list, dim=0)
+        training_batch.log_probs = torch.cat(all_log_probs_list, dim=0)
+        training_batch.timesteps = torch.cat(all_timesteps_list, dim=0)
+        training_batch.kl = torch.cat(all_kl_list, dim=0) if all_kl_list else None
+        decoded_videos = torch.cat(all_decoded_videos_list, dim=0)
+        training_batch.prompt_ids = None
 
         # Store old log probs for importance ratio computation
         training_batch.old_log_probs = training_batch.log_probs.clone()
