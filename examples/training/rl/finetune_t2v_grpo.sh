@@ -12,12 +12,16 @@ export PYTHONPATH="/mnt/fast-disks/hao_lab/tamoghno/FastVideo:$PYTHONPATH"
 MODEL_PATH="Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
 RL_DATASET_DIR="data/ocr/"  # Path to RL prompt dataset directory (should contain train.txt and test.txt)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 VALIDATION_DATASET_FILE="$SCRIPT_DIR/validation.json"
 NUM_GPUS=1
 
 # use GPU 6 (changed to avoid conflicts)
 export CUDA_VISIBLE_DEVICES=6
 
+
+# Ensure relative paths resolve from repo root
+cd "$REPO_ROOT"
 
 # Training arguments
 training_args=(
@@ -116,8 +120,8 @@ miscellaneous_args=(
 torchrun \
   --nnodes 1 \
   --nproc_per_node $NUM_GPUS \
-  --master_port 29601 \
-    "fastvideo/training/wan_rl_training_pipeline.py" \
+  --master_port 29612  \
+    "$REPO_ROOT/fastvideo/training/wan_rl_training_pipeline.py" \
     "${parallel_args[@]}" \
     "${model_args[@]}" \
     "${dataset_args[@]}" \
