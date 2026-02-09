@@ -3,9 +3,14 @@
 
 export WANDB_BASE_URL="https://api.wandb.ai"
 export WANDB_MODE=online
+<<<<<<< HEAD
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # Use tamoghno's FastVideo instead of the installed (shijie's) version
 export PYTHONPATH="/mnt/fast-disks/hao_lab/tamoghno/FastVideo:$PYTHONPATH"
+=======
+export WANDB_API_KEY="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"
+
+>>>>>>> origin/shijie/phase2_scratch
 MODEL_PATH="Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
 RL_DATASET_DIR="data/ocr/"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,22 +18,27 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 VALIDATION_DATASET_FILE="$SCRIPT_DIR/validation.json"
 NUM_GPUS=4
 
+<<<<<<< HEAD
 export CUDA_VISIBLE_DEVICES=4,5,6,7
 
 
+=======
+export CUDA_VISIBLE_DEVICES=2,3,4,5
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+>>>>>>> origin/shijie/phase2_scratch
 
 # Training arguments (aligned with WandB sample + train; SFT not used)
 training_args=(
   --tracker_project_name "wan_t2v_grpo"
   --output_dir "checkpoints/wan_t2v_grpo_4gpu"
-  --max_train_steps 1000
+  --max_train_steps 3000
   --train_batch_size 8
   --train_sp_batch_size 1
   --gradient_accumulation_steps 1
   --num_latent_t 20
   --num_height 240
   --num_width 416
-  --num_frames 33
+  --num_frames 77
   --lora_rank 32
   --lora_training True
 )
@@ -80,11 +90,12 @@ rl_args=(
   --rl_async_rewards False
   --guidance_scale 4.5
 )
-cfg_args=( --guidance_scale 4.5 )
+cfg_args=( 
+  --guidance_scale 4.5 
+)
 miscellaneous_args=(
   --inference_mode False
-  --checkpoints_total_limit 17
-  --training_cfg_rate 0.0
+  --checkpoints_total_limit 67
   --dit_precision "fp32"
   --num_euler_timesteps 50
   --ema_start_step 0
@@ -94,8 +105,13 @@ miscellaneous_args=(
 torchrun \
   --nnodes 1 \
   --nproc_per_node $NUM_GPUS \
+<<<<<<< HEAD
   --master_port 29809 \
   "$REPO_ROOT/fastvideo/training/wan_rl_training_pipeline.py" \
+=======
+  --master_port 29866 \
+  "fastvideo/training/wan_rl_training_pipeline.py" \
+>>>>>>> origin/shijie/phase2_scratch
   "${parallel_args[@]}" \
   "${model_args[@]}" \
   "${dataset_args[@]}" \

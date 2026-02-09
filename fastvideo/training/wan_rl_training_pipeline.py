@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 import sys
-from copy import deepcopy
 
 from fastvideo.fastvideo_args import FastVideoArgs, TrainingArgs
 from fastvideo.logger import init_logger
@@ -40,6 +39,8 @@ class WanRLTrainingPipeline(RLPipeline):
 
     def _create_inference_pipeline(self, training_args: TrainingArgs,
                                    dit_cpu_offload: bool):
+        from copy import deepcopy
+
         args_copy = deepcopy(training_args)
         args_copy.inference_mode = True
         loaded_modules = {
@@ -76,11 +77,6 @@ class WanRLTrainingPipeline(RLPipeline):
         logger.info("Initializing validation pipeline...")
         self.validation_pipeline = self._create_inference_pipeline(
             training_args, dit_cpu_offload=True)
-
-    def _build_sampling_pipeline(self, training_args: TrainingArgs):
-        return self._create_inference_pipeline(training_args,
-                                               dit_cpu_offload=False)
-
 
 def main(args) -> None:
     logger.info("Starting RL training pipeline...")

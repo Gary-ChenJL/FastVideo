@@ -34,7 +34,7 @@ training_args=(
   --num_latent_t 20
   --num_height 240
   --num_width 416
-  --num_frames 33
+  --num_frames 77
   --lora_rank 32
   --lora_training True
 )
@@ -107,7 +107,6 @@ cfg_args=(
 miscellaneous_args=(
   --inference_mode False
   --checkpoints_total_limit 1
-  --training_cfg_rate 0.0  # No CFG during training (CFG used in sampling)
   --dit_precision "fp32"
   # --dit_precision "bf16"
   --num_euler_timesteps 50
@@ -128,4 +127,5 @@ torchrun \
     "${optimizer_args[@]}" \
     "${validation_args[@]}" \
     "${rl_args[@]}" \
+    "${cfg_args[@]}" \
     "${miscellaneous_args[@]}"
