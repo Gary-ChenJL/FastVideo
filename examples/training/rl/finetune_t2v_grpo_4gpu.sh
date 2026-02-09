@@ -4,14 +4,18 @@
 export WANDB_BASE_URL="https://api.wandb.ai"
 export WANDB_MODE=online
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-
+# Use tamoghno's FastVideo instead of the installed (shijie's) version
+export PYTHONPATH="/mnt/fast-disks/hao_lab/tamoghno/FastVideo:$PYTHONPATH"
 MODEL_PATH="Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
 RL_DATASET_DIR="data/ocr/"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 VALIDATION_DATASET_FILE="$SCRIPT_DIR/validation.json"
 NUM_GPUS=4
 
-# export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=4,5,6,7
+
+
 
 # Training arguments (aligned with WandB sample + train; SFT not used)
 training_args=(
@@ -73,6 +77,8 @@ rl_args=(
   --rl_per_prompt_stat_tracking True
   --rl_warmup_steps 0
   --reward-models "{\"paddle_ocr\": 1.0}"
+  --rl_async_rewards False
+  --guidance_scale 4.5
 )
 cfg_args=( --guidance_scale 4.5 )
 miscellaneous_args=(
@@ -88,8 +94,8 @@ miscellaneous_args=(
 torchrun \
   --nnodes 1 \
   --nproc_per_node $NUM_GPUS \
-  --master_port 29902 \
-  "fastvideo/training/wan_rl_training_pipeline.py" \
+  --master_port 29809 \
+  "$REPO_ROOT/fastvideo/training/wan_rl_training_pipeline.py" \
   "${parallel_args[@]}" \
   "${model_args[@]}" \
   "${dataset_args[@]}" \

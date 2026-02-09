@@ -283,8 +283,6 @@ class RLPipeline(TrainingPipeline):
                 self.train_sampler.set_step(0)
                 self.train_loader_iter = iter(self.train_dataloader)
                 batch = next(self.train_loader_iter)
-
-                batch = next(self.train_loader_iter)
                 self.current_step += 1
                 self.train_sampler.set_step(self.current_step)
 
@@ -348,10 +346,11 @@ class RLPipeline(TrainingPipeline):
 
     def _shutdown_async_rewards(self) -> None:
         """Shutdown async reward executor if active."""
-        if self._reward_executor is None:
+        executor = getattr(self, '_reward_executor', None)
+        if executor is None:
             return
         try:
-            self._reward_executor.shutdown(wait=True)
+            executor.shutdown(wait=True)
         finally:
             self._reward_executor = None
             self._reward_streams = None
@@ -360,10 +359,11 @@ class RLPipeline(TrainingPipeline):
     def __del__(self):
         self._shutdown_async_rewards()
 
-    def _compute_reward_async(self, video: torch.Tensor, prompt: str,
-                              stream_idx: int,
-                              event: torch.cuda.Event | None = None) -> float:
-        """Compute a single-sample reward in a worker thread."""
+    def _compute_reward_batch_async(self, videos: torch.Tensor,
+                                    prompts: list[str], stream_idx: int,
+                                    event: torch.cuda.Event | None = None
+                                    ) -> torch.Tensor:
+        """Compute a batched reward in a worker thread."""
         if self.reward_models is None:
             raise RuntimeError(
                 "Reward models not initialized. Call initialize_training_pipeline first."
@@ -381,14 +381,12 @@ class RLPipeline(TrainingPipeline):
                 with torch.cuda.stream(stream):
                     if event is not None:
                         stream.wait_event(event)
-                    reward = self.reward_models.compute_reward(
-                        video.unsqueeze(0), [prompt])
+                    reward = self.reward_models.compute_reward(videos, prompts)
                 stream.synchronize()
             else:
-                reward = self.reward_models.compute_reward(
-                    video.unsqueeze(0), [prompt])
+                reward = self.reward_models.compute_reward(videos, prompts)
 
-        return float(reward.item())
+        return reward.detach()
 
     def _submit_async_rewards(self, training_batch: TrainingBatch,
                                decoded_videos: torch.Tensor,
@@ -406,23 +404,22 @@ class RLPipeline(TrainingPipeline):
             event = torch.cuda.Event()
             event.record()
 
-        futures: list[concurrent.futures.Future] = []
-        max_queue = self._reward_max_queue
-        for idx, (video, prompt) in enumerate(
-                zip(decoded_videos, prompts, strict=False)):
-            if max_queue > 0 and len(futures) >= max_queue:
-                futures.pop(0).result()
-            future = self._reward_executor.submit(self._compute_reward_async,
-                                                  video, prompt, idx, event)
-            futures.append(future)
-
         if training_batch.input_kwargs is None:
             training_batch.input_kwargs = {}
         existing_futures = training_batch.input_kwargs.get("reward_futures")
-        if existing_futures:
-            existing_futures.extend(futures)
-        else:
-            training_batch.input_kwargs["reward_futures"] = futures
+        if existing_futures is None:
+            existing_futures = []
+
+        max_queue = self._reward_max_queue
+        if max_queue > 0 and len(existing_futures) >= max_queue:
+            existing_futures.pop(0).result()
+
+        stream_idx = 0
+        future = self._reward_executor.submit(
+            self._compute_reward_batch_async, decoded_videos, prompts,
+            stream_idx, event)
+        existing_futures.append(future)
+        training_batch.input_kwargs["reward_futures"] = existing_futures
 
 
     def collect_trajectories(self,
@@ -510,14 +507,15 @@ class RLPipeline(TrainingPipeline):
             # Fall back to hardcoded value (was 6.0, matching validation default)
             guidance_scale = 6.0
 
-        latents_size = [(num_frames - 1) // 4 + 1,
-                        height // 8, width // 8]
-        n_tokens = latents_size[0] * latents_size[1] * latents_size[2]
-
         # Compute num_frames using same formula as validation pipeline
         # This ensures correct video duration (matches validation)
         temporal_compression_factor = self.training_args.pipeline_config.vae_config.arch_config.temporal_compression_ratio
         num_frames = (num_inference_steps - 1) * temporal_compression_factor + 1
+
+        # Calculate n_tokens AFTER recomputing num_frames (must match validation pipeline)
+        latents_size = [(num_frames - 1) // 4 + 1,
+                        height // 8, width // 8]
+        n_tokens = latents_size[0] * latents_size[1] * latents_size[2]
         
         # Set sampling_param fields to match validation pipeline pattern
         sampling_param.prompt = prompts  # Will be set per-batch in loop
@@ -541,12 +539,21 @@ class RLPipeline(TrainingPipeline):
         all_kl_list = []
         all_timesteps_list = []
         all_decoded_videos_list = []  # Store decoded videos from pipeline output (like validation)
-        # Placeholder for compatibility with older trajectory collection logic.
-        # Kept to avoid NameError if referenced; currently prompt_ids are stored as None.
+        # Collect prompt_ids for per-prompt stat tracking (aligned with sampling order).
         all_prompt_ids_list = []
 
         # Set transformer to eval mode for sampling
         self.transformer.eval()
+
+        # Tokenize prompts once so we can slice per chunk and keep alignment.
+        tokenizer = self.get_module("tokenizer")
+        prompt_ids_all = tokenizer(
+            prompts,
+            padding="max_length",
+            max_length=512,
+            truncation=True,
+            return_tensors="pt",
+        ).input_ids.to(self.device)
 
         with torch.no_grad():
             # Sample multiple times per prompt if needed
@@ -573,6 +580,7 @@ class RLPipeline(TrainingPipeline):
                 for start_idx in range(0, total_prompts, chunk_size):
                     end_idx = min(start_idx + chunk_size, total_prompts)
                     chunk_prompts = prompts[start_idx:end_idx]
+                    chunk_prompt_ids = prompt_ids_all[start_idx:end_idx]
 
                     # Set seed in sampling_param - InputValidationStage will use this to create
                     # a list of generators (one per batch item)
@@ -709,7 +717,7 @@ class RLPipeline(TrainingPipeline):
                         all_kl_list.append(kl)
                     all_timesteps_list.append(timesteps)
                     all_decoded_videos_list.append(decoded_videos)
-                    all_prompt_ids_list.append(None)
+                    all_prompt_ids_list.append(chunk_prompt_ids)
 
                     # Submit async rewards for this chunk to overlap with next chunk generation
                     if self._async_reward_enabled:
@@ -723,7 +731,7 @@ class RLPipeline(TrainingPipeline):
         training_batch.timesteps = torch.cat(all_timesteps_list, dim=0)
         training_batch.kl = torch.cat(all_kl_list, dim=0) if all_kl_list else None
         decoded_videos = torch.cat(all_decoded_videos_list, dim=0)
-        training_batch.prompt_ids = None
+        training_batch.prompt_ids = torch.cat(all_prompt_ids_list, dim=0)
 
         # Store old log probs for importance ratio computation
         training_batch.old_log_probs = training_batch.log_probs.clone()
@@ -861,14 +869,16 @@ class RLPipeline(TrainingPipeline):
             reward_futures = training_batch.input_kwargs.get("reward_futures")
         if reward_futures:
             start_time = time.perf_counter()
-            reward_values = [future.result() for future in reward_futures]
-            reward_scores = torch.tensor(
-                reward_values, device=target_device, dtype=torch.float32)
+            reward_chunks = [future.result() for future in reward_futures]
+            reward_scores = torch.cat([
+                chunk.to(target_device) for chunk in reward_chunks
+            ],
+                                     dim=0).to(dtype=torch.float32)
             del training_batch.input_kwargs["reward_futures"]
             elapsed = time.perf_counter() - start_time
             logger.info(
                 "Async rewards collected: count=%d, time=%.3fs",
-                len(reward_values),
+                reward_scores.numel(),
                 elapsed,
             )
         else:

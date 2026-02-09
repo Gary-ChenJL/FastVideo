@@ -17,7 +17,7 @@ VALIDATION_DATASET_FILE="$SCRIPT_DIR/validation.json"
 NUM_GPUS=1
 
 # use GPU 3 (changed to avoid conflicts)
-# export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=0
 
 
 # Ensure relative paths resolve from repo root
@@ -27,7 +27,7 @@ cd "$REPO_ROOT"
 training_args=(
   --tracker_project_name "wan_t2v_grpo"
   --output_dir "checkpoints/wan_t2v_grpo"
-  --max_train_steps 1000 # 5000
+  --max_train_steps 250 # 5000
   --train_batch_size 8
   --train_sp_batch_size 1
   --gradient_accumulation_steps 1
@@ -70,7 +70,7 @@ validation_args=(
   --validation_dataset_file $VALIDATION_DATASET_FILE
   --validation_steps 30
   --validation_sampling_steps "20" 
-  --validation_guidance_scale "6.0"
+  --validation_guidance_scale "4.5"
 )
 
 # Optimizer arguments
@@ -95,7 +95,7 @@ rl_args=(
   --rl_per_prompt_stat_tracking True  # Enable per-prompt stat tracking
   --rl_warmup_steps 0  # Number of warmup steps (SFT before RL)
   --reward-models "{\"paddle_ocr\": 1.0}" # use video_ocr reward function
-  --rl_async_rewards True
+  --rl_async_rewards False
 )
 
 # CFG arguments
