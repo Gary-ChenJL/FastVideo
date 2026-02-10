@@ -11,11 +11,9 @@ RL_DATASET_DIR="data/ocr/"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 VALIDATION_DATASET_FILE="$SCRIPT_DIR/validation.json"
-NUM_GPUS=4
+NUM_GPUS=8
 
-export CUDA_VISIBLE_DEVICES=4,5,6,7
-
-
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 # Training arguments (aligned with WandB sample + train; SFT not used)
 training_args=(
@@ -28,7 +26,7 @@ training_args=(
   --num_latent_t 20
   --num_height 240
   --num_width 416
-  --num_frames 77
+  --num_frames 33
   --lora_rank 32
   --lora_training True
 )
