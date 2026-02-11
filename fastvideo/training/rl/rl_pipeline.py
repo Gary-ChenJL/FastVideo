@@ -212,7 +212,7 @@ class RLPipeline(TrainingPipeline):
         vae = self.get_module("vae", None)
         if vae is not None:
             loaded_modules["vae"] = vae
-        # Use UniPCMultistepScheduler for RL sampling to match flow_grpo
+        # Use Euler scheduler for RL sampling (matches training pipeline)
         scheduler = self.get_module("scheduler", None)
         if scheduler is not None:
             loaded_modules["scheduler"] = scheduler
@@ -1279,7 +1279,7 @@ class RLPipeline(TrainingPipeline):
         if mask.all():
             return
         indices = mask.nonzero(as_tuple=True)[0]
-        # Tensors with batch dim in first axis
+        # Tensors with batch dim in first axis (ensure indices on same device as tensor)
         for key in (
             "latents", "timesteps", "old_log_probs", "advantages",
             "log_probs", "encoder_hidden_states", "reward_scores",
@@ -1287,13 +1287,17 @@ class RLPipeline(TrainingPipeline):
         ):
             t = getattr(training_batch, key, None)
             if t is not None and isinstance(t, torch.Tensor) and t.shape[0] == mask.shape[0]:
-                setattr(training_batch, key, t[indices].contiguous())
+                setattr(training_batch, key,
+                        t[indices.to(t.device)].contiguous())
         if training_batch.kl is not None and training_batch.kl.shape[0] == mask.shape[0]:
-            training_batch.kl = training_batch.kl[indices].contiguous()
+            training_batch.kl = training_batch.kl[
+                indices.to(training_batch.kl.device)].contiguous()
         if training_batch.prompt_embeds is not None and training_batch.prompt_embeds.shape[0] == mask.shape[0]:
-            training_batch.prompt_embeds = training_batch.prompt_embeds[indices].contiguous()
+            training_batch.prompt_embeds = training_batch.prompt_embeds[
+                indices.to(training_batch.prompt_embeds.device)].contiguous()
         if training_batch.negative_prompt_embeds is not None and training_batch.negative_prompt_embeds.shape[0] == mask.shape[0]:
-            training_batch.negative_prompt_embeds = training_batch.negative_prompt_embeds[indices].contiguous()
+            training_batch.negative_prompt_embeds = training_batch.negative_prompt_embeds[
+                indices.to(training_batch.negative_prompt_embeds.device)].contiguous()
         # input_kwargs: filter list/dict and decoded_videos tensor
         if training_batch.input_kwargs is not None:
             idx_list = indices.cpu().tolist()
@@ -1304,7 +1308,8 @@ class RLPipeline(TrainingPipeline):
             if "decoded_videos" in training_batch.input_kwargs:
                 dv = training_batch.input_kwargs["decoded_videos"]
                 if isinstance(dv, torch.Tensor) and dv.shape[0] == mask.shape[0]:
-                    training_batch.input_kwargs["decoded_videos"] = dv[indices].contiguous()
+                    training_batch.input_kwargs["decoded_videos"] = dv[
+                        indices.to(dv.device)].contiguous()
         # RL forward context/kwargs: filter any tensor with batch dim
         if training_batch.rl_transformer_forward_contexts is not None and mask.shape[0] > 0:
             # Per-step list; each step may have batched tensors in the dict
@@ -1313,11 +1318,12 @@ class RLPipeline(TrainingPipeline):
                     continue
                 for k, v in list(ctx.items()):
                     if isinstance(v, torch.Tensor) and v.shape[0] == mask.shape[0]:
-                        ctx[k] = v[indices].contiguous()
+                        ctx[k] = v[indices.to(v.device)].contiguous()
         if training_batch.rl_transformer_forward_kwargs is not None:
             for k, v in list(training_batch.rl_transformer_forward_kwargs.items()):
                 if isinstance(v, torch.Tensor) and v.shape[0] == mask.shape[0]:
-                    training_batch.rl_transformer_forward_kwargs[k] = v[indices].contiguous()
+                    training_batch.rl_transformer_forward_kwargs[k] = v[
+                        indices.to(v.device)].contiguous()
 
     def _compute_log_prob_for_timestep(
         self,
@@ -1376,13 +1382,23 @@ class RLPipeline(TrainingPipeline):
 
         dev = latents.device
         latent_model_input = latents.to(target_dtype)
-        t_expand = timesteps.to(dev)
+        # Use scheduler's timestep for step current_timestep so index_for_timestep
+        # in sde_step_with_logprob finds an exact match (avoids IndexError when
+        # batch timesteps differ from scheduler due to dtype/config mismatch).
+        scheduler_t = scheduler.timesteps[current_timestep]
+        if isinstance(scheduler_t, torch.Tensor):
+            timesteps_safe = scheduler_t.to(dev).expand(timesteps.shape[0])
+        else:
+            timesteps_safe = torch.full(
+                (timesteps.shape[0],), scheduler_t, device=dev,
+                dtype=torch.int64)
+        t_expand = timesteps_safe
         prompt_embeds = prompt_embeds.to(target_dtype)
         if negative_prompt_embeds is not None:
             negative_prompt_embeds = negative_prompt_embeds.to(target_dtype)
 
         # Match DenoisingStage: scale latent input by scheduler
-        t_scalar = timesteps[0] if timesteps.dim() > 0 else timesteps
+        t_scalar = timesteps_safe[0] if timesteps_safe.dim() > 0 else timesteps_safe
         if isinstance(t_scalar, torch.Tensor):
             t_scalar = t_scalar.item() if t_scalar.numel() == 1 else t_scalar
         latent_model_input = scheduler.scale_model_input(
@@ -1472,7 +1488,7 @@ class RLPipeline(TrainingPipeline):
 
         return sde_step_with_logprob(scheduler,
                                      noise_pred.float(),
-                                     timesteps,
+                                     timesteps_safe,
                                      latents.float(),
                                      prev_sample=next_latents.float(),
                                      return_dt_and_std_dev_t=True)

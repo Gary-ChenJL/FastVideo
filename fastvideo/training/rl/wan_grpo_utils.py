@@ -9,7 +9,7 @@ Ported from:
 - flow_grpo/flow_grpo/diffusers_patch/wan_pipeline_with_logprob.py
 
 Key adaptations:
-1. Uses FastVideo's FlowUniPCMultistepScheduler instead of diffusers' UniPCMultistepScheduler
+1. Uses FastVideo's FlowMatchEulerDiscreteScheduler for Euler-method sampling/training
 2. Works with FastVideo's WanPipeline (ComposedPipelineBase) instead of diffusers' WanPipeline
 3. Direct module access via pipeline.get_module() instead of pipeline attributes
 4. Simplified prompt encoding (direct text encoder usage instead of pipeline stages)
@@ -25,8 +25,8 @@ from diffusers.utils.torch_utils import randn_tensor
 
 from fastvideo.forward_context import set_forward_context
 from fastvideo.logger import init_logger
-from fastvideo.models.schedulers.scheduling_flow_unipc_multistep import (
-    FlowUniPCMultistepScheduler)
+from fastvideo.models.schedulers.scheduling_flow_match_euler_discrete import (
+    FlowMatchEulerDiscreteScheduler)
 from fastvideo.utils import get_compute_dtype
 
 # for test_wan_transformer2
@@ -300,7 +300,7 @@ def test_wan_transformer2(model2):
 
 
 def sde_step_with_logprob(
-    scheduler: FlowUniPCMultistepScheduler,
+    scheduler: FlowMatchEulerDiscreteScheduler,
     model_output: torch.FloatTensor,
     timestep: float | torch.FloatTensor,
     sample: torch.FloatTensor,
@@ -316,10 +316,10 @@ def sde_step_with_logprob(
     (most often the predicted velocity) and computes log probabilities.
 
     Ported from FlowGRPO's sde_step_with_logprob to work with FastVideo's
-    FlowUniPCMultistepScheduler.
+    FlowMatchEulerDiscreteScheduler.
 
     Args:
-        scheduler: FastVideo FlowUniPCMultistepScheduler instance
+        scheduler: FastVideo FlowMatchEulerDiscreteScheduler instance
         model_output: The direct output from learned flow model
         timestep: The current discrete timestep in the diffusion chain
         sample: A current instance of a sample created by the diffusion process

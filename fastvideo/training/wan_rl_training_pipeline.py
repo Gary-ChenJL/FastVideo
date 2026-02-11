@@ -3,8 +3,8 @@ import sys
 
 from fastvideo.fastvideo_args import FastVideoArgs, TrainingArgs
 from fastvideo.logger import init_logger
-from fastvideo.models.schedulers.scheduling_flow_unipc_multistep import (
-    FlowUniPCMultistepScheduler)
+from fastvideo.models.schedulers.scheduling_flow_match_euler_discrete import (
+    FlowMatchEulerDiscreteScheduler)
 from fastvideo.pipelines.basic.wan.wan_pipeline import WanPipeline
 from fastvideo.training.rl.rl_pipeline import RLPipeline
 from fastvideo.utils import is_vsa_available
@@ -25,53 +25,20 @@ class WanRLTrainingPipeline(RLPipeline):
     ]
 
     def initialize_pipeline(self, fastvideo_args: FastVideoArgs):
-        # Use the same FlowUniPCMultistepScheduler as WanPipeline so that
-        # the training pipeline's scheduler (used in _compute_log_prob_for_timestep)
+        # Use FlowMatchEulerDiscreteScheduler for both training and sampling
+        # so that the training pipeline's scheduler (used in _compute_log_prob_for_timestep)
         # matches the sampling pipeline's DenoisingStage scheduler.
-        self.modules["scheduler"] = FlowUniPCMultistepScheduler(
-            shift=fastvideo_args.pipeline_config.flow_shift)
+        flow_shift = fastvideo_args.pipeline_config.flow_shift
+        if flow_shift is None:
+            flow_shift = 1.0
+        self.modules["scheduler"] = FlowMatchEulerDiscreteScheduler(
+            shift=flow_shift)
 
     def create_training_stages(self, training_args: TrainingArgs):
         """
         May be used in future refactors.
         """
         pass
-
-    def _create_inference_pipeline(self, training_args: TrainingArgs,
-                                   dit_cpu_offload: bool):
-        from copy import deepcopy
-
-        args_copy = deepcopy(training_args)
-        args_copy.inference_mode = True
-        loaded_modules = {
-            "transformer": self.get_module("transformer"),
-        }
-        transformer_2 = self.get_module("transformer_2", None)
-        if transformer_2 is not None:
-            loaded_modules["transformer_2"] = transformer_2
-        text_encoder = self.get_module("text_encoder", None)
-        if text_encoder is not None:
-            loaded_modules["text_encoder"] = text_encoder
-        tokenizer = self.get_module("tokenizer", None)
-        if tokenizer is not None:
-            loaded_modules["tokenizer"] = tokenizer
-        vae = self.get_module("vae", None)
-        if vae is not None:
-            loaded_modules["vae"] = vae
-        pipeline = WanPipeline.from_pretrained(
-            training_args.model_path,
-            args=args_copy,  # type: ignore
-            inference_mode=True,
-            loaded_modules=loaded_modules,
-            tp_size=training_args.tp_size,
-            sp_size=training_args.sp_size,
-            num_gpus=training_args.num_gpus,
-            pin_cpu_memory=training_args.pin_cpu_memory,
-            dit_cpu_offload=dit_cpu_offload)
-        # WanPipeline.initialize_pipeline already sets the correct
-        # FlowUniPCMultistepScheduler in both modules dict and DenoisingStage.
-        # No override needed here.
-        return pipeline
 
     def initialize_validation_pipeline(self, training_args: TrainingArgs):
         logger.info("Initializing validation pipeline...")
