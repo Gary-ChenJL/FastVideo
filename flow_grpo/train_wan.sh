@@ -1,6 +1,6 @@
 export PYTHONPATH="${PYTHONPATH}:/home/hao_lab/miniconda3/envs/flow_grpo/bin/python"
 export WANDB_API_KEY="84fb0deb6b40f77a0f1ceda0029efbe67164395f"
-export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 # Set to a directory where align_logs/flow_logs (and fv_logs when running FastVideo) will be written
 # Run flow_grpo first; it writes decoded videos to align_logs/fv_logs/decoded_videos/*.safetensors (per batch/rank).
 # Then run FastVideo with USE_ALIGN_DECODED_VIDEOS=1 to compute rewards/advantages on those videos.

@@ -23,7 +23,14 @@ from flow_grpo.stat_tracking import PerPromptStatTracker
 from flow_grpo.diffusers_patch.wan_pipeline_with_logprob import wan_pipeline_with_logprob, sde_step_with_logprob
 from flow_grpo.diffusers_patch.wan_prompt_embedding import encode_prompt
 import torch
-import wandb
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except Exception as e:
+    wandb = None
+    WANDB_AVAILABLE = False
+    import warnings
+    warnings.warn(f"wandb import failed ({e}); running without wandb logging.")
 from functools import partial
 import tqdm
 import tempfile
@@ -342,21 +349,18 @@ def eval(pipeline, test_dataloader, text_encoders, tokenizers, config, accelerat
             sampled_rewards = [{k: last_batch_rewards_gather[k][index] for k in last_batch_rewards_gather} for index in sample_indices]
             for key, value in all_rewards.items():
                 print(key, value.shape)
-            accelerator.log(
-                {
-                    "eval_images": [
-                        wandb.Video(
-                            os.path.join(tmpdir, f"{idx}.mp4"),
-                            caption=f"{prompt:.1000} | " + " | ".join(f"{k}: {v:.2f}" for k, v in reward.items() if v != -10),
-                            format="mp4",
-                            fps=8 
-                        )
-                        for idx, (prompt, reward) in enumerate(zip(sampled_prompts, sampled_rewards))
-                    ],
-                    **{f"eval_reward_{key}": np.mean(value[value != -10]) for key, value in all_rewards.items()},
-                },
-                step=global_step,
-            )
+            log_dict = {f"eval_reward_{key}": np.mean(value[value != -10]) for key, value in all_rewards.items()}
+            if WANDB_AVAILABLE:
+                log_dict["eval_images"] = [
+                    wandb.Video(
+                        os.path.join(tmpdir, f"{idx}.mp4"),
+                        caption=f"{prompt:.1000} | " + " | ".join(f"{k}: {v:.2f}" for k, v in reward.items() if v != -10),
+                        format="mp4",
+                        fps=8
+                    )
+                    for idx, (prompt, reward) in enumerate(zip(sampled_prompts, sampled_rewards))
+                ]
+            accelerator.log(log_dict, step=global_step)
     if config.train.ema:
         ema.copy_temp_to(transformer_trainable_parameters)
 
@@ -413,7 +417,7 @@ def main(_):
     gradient_accumulation_steps = config.train.gradient_accumulation_steps * num_train_timesteps
 
     accelerator = Accelerator(
-        log_with="wandb",
+        log_with="wandb" if WANDB_AVAILABLE else None,
         mixed_precision=config.mixed_precision,
         project_config=accelerator_config,
         # we always accumulate gradients across timesteps; we want config.train.gradient_accumulation_steps to be the
@@ -423,7 +427,7 @@ def main(_):
     )
 
     wandb_project_name = "wan_flow_grpo"
-    if accelerator.is_main_process:
+    if accelerator.is_main_process and WANDB_AVAILABLE:
         accelerator.init_trackers(
             project_name=wandb_project_name,
             config=config.to_dict(),
@@ -709,8 +713,8 @@ def main(_):
                     prompt_ids_gathered, skip_special_tokens=True
                 )
                 prompts_path = os.path.join(out_dir, "prompts.txt")
-                if i == 0:
-                    open(prompts_path, "w").close()
+                # if i == 0:
+                #     open(prompts_path, "w").close()
                 with open(prompts_path, "a") as f:
                     if i > 0:
                         f.write("\n")
@@ -769,7 +773,8 @@ def main(_):
                             fps=fps,
                         )
                     metrics_path = os.path.join(out_dir, "debug_metrics.txt")
-                    mode = "w" if (i == 0 and j == 0) else "a"
+                    # mode = "w" if (i == 0 and j == 0) else "a"
+                    mode = "a"
                     with open(metrics_path, mode) as f:
                         f.write(f"=== batch {i} (j={j}) ===\n")
                         pred_per = debug_metrics.pop("debug_model_pred_per_step", [])
@@ -871,20 +876,19 @@ def main(_):
                 sampled_prompts = [prompts[i] for i in sample_indices]
                 sampled_rewards = [rewards['avg'][i] for i in sample_indices]
 
-                accelerator.log(
-                    {
-                        "video": [
-                            wandb.Video(
-                                os.path.join(tmpdir, f"{idx}.mp4"),
-                                caption=f"{prompt:.100} | avg: {avg_reward:.2f}",
-                                format="mp4",
-                                fps=8 
-                            )
-                            for idx, (prompt, avg_reward) in enumerate(zip(sampled_prompts, sampled_rewards))
-                        ],
-                    },
-                    step=global_step,
-                )
+                log_dict = {}
+                if WANDB_AVAILABLE:
+                    log_dict["video"] = [
+                        wandb.Video(
+                            os.path.join(tmpdir, f"{idx}.mp4"),
+                            caption=f"{prompt:.100} | avg: {avg_reward:.2f}",
+                            format="mp4",
+                            fps=8
+                        )
+                        for idx, (prompt, avg_reward) in enumerate(zip(sampled_prompts, sampled_rewards))
+                    ]
+                if log_dict:
+                    accelerator.log(log_dict, step=global_step)
         samples["rewards"]["ori_avg"] = samples["rewards"]["avg"]
         samples["rewards"]["avg"] = samples["rewards"]["avg"].unsqueeze(-1) - config.sample.kl_reward*samples["kl"]
         # gather rewards across processes
@@ -1024,12 +1028,17 @@ def main(_):
 
         #################### TRAINING ####################
         for inner_epoch in range(config.train.num_inner_epochs):
+            # myregion shuffle
             # shuffle samples along batch dimension
             g = torch.Generator(device='cuda').manual_seed(50)
             # perm = torch.randperm(total_batch_size, device=accelerator.device, generator=g)
             perm = torch.randperm(total_batch_size, device='cuda', generator=g)
+            # myregion debug
+            # hardcode perm:
+            # perm = torch.tensor([14,  2,  5,  1, 12,  3, 11,  9,  4, 13,  8,  6,  7,  0, 15, 10], device='cuda')
             if accelerator.is_main_process:
-                print(f"shuffle_training_batches perm: {perm}")
+                print(f"hardcoded shuffle perm: {perm}")
+            # endregion
             # perm = torch.arange(total_batch_size, device=accelerator.device)
             samples = {k: v[perm] for k, v in samples.items()}
 
@@ -1046,6 +1055,7 @@ def main(_):
                     torch.arange(total_batch_size, device=accelerator.device)[:, None],
                     perms,
                 ]
+            # end region
 
             micoe_batch = total_batch_size // (config.sample.num_batches_per_epoch * config.sample.sample_time_per_prompt)
 
@@ -1095,6 +1105,7 @@ def main(_):
                     with accelerator.accumulate(transformer):
                         with autocast():
                             prev_sample, log_prob, prev_sample_mean, std_dev_t, dt = compute_log_prob(transformer, pipeline, sample, j, embeds, negative_embeds, config)
+                            
                             if config.train.beta > 0:
                                 with torch.no_grad():
                                     with transformer.module.disable_adapter():
@@ -1139,6 +1150,44 @@ def main(_):
 
                         info["loss"].append(loss)
 
+                        # myregion debug
+                        # Debug: log probs for timestep 18 to flow_logs/debug_metrics.txt (same format as FastVideo)
+                        os.makedirs(ALIGN_FLOW_LOGS_DIR, exist_ok=True)
+                        debug_path = os.path.join(ALIGN_FLOW_LOGS_DIR, "debug_metrics.txt")
+
+                        log_prob_1d = log_prob.view(-1).contiguous().float()
+                        ratio_1d = ratio.view(-1).contiguous().float()
+                        gathered_log_prob = accelerator.gather(log_prob_1d).cpu().tolist()
+                        gathered_ratio = accelerator.gather(ratio_1d).cpu().tolist()
+                        
+                        if accelerator.is_main_process:
+                            with open(debug_path, "a") as f:
+                                if j == 18:
+                                    f.write(f"\n=== log_probs at timestep {j} batch {i} ===\n")
+                                    for log_prob in gathered_log_prob:
+                                        f.write(f"{log_prob}, ")
+                                    f.write("\n")
+                                    stats_lp = f"log_prob: global_batch_size: {len(gathered_log_prob)}"
+                                    if gathered_log_prob:
+                                        stats_lp += f", min: {min(gathered_log_prob)}, max: {max(gathered_log_prob)}, mean: {sum(gathered_log_prob) / len(gathered_log_prob)}"
+                                    f.write(stats_lp + "\n")
+
+                                    f.write(f"\n=== ratios at timestep {j} batch {i} ===\n")
+                                    for ratio in gathered_ratio:
+                                        f.write(f"{ratio}, ")
+                                    f.write("\n")
+                                    stats_r = f"ratio: global_batch_size: {len(gathered_ratio)}"
+                                    if gathered_ratio:
+                                        stats_r += f", min: {min(gathered_ratio)}, max: {max(gathered_ratio)}, mean: {sum(gathered_ratio) / len(gathered_ratio)}"
+                                    f.write(stats_r + "\n")
+                        
+                                f.write(f"=== policy_loss at timestep {j} batch {i} ===\n")
+                                f.write(f"{policy_loss}")
+                                f.write("\n")
+
+                        
+                        # end region
+
                         # backward pass
                         accelerator.backward(loss)
                         
@@ -1151,6 +1200,12 @@ def main(_):
 
                     # Checks if the accelerator has performed an optimization step behind the scenes
                     if accelerator.sync_gradients:
+                        # myregion debug
+                        if accelerator.is_main_process:
+                            with open(debug_path, "a") as f:
+                                f.write(f"\n=== optimizer step performed ===\n\n")
+                        # end region
+
                         # assert (j == train_timesteps[-1]) and (
                         #     i + 1
                         # ) % config.train.gradient_accumulation_steps == 0

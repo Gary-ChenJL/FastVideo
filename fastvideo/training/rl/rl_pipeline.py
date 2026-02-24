@@ -66,6 +66,70 @@ else:
     ALIGN_FV_LOGS_DIR = os.path.join(_file_root, "align_logs", "fv_logs")
     ALIGN_FLOW_DEBUG_METRICS_PATH = os.path.join(_file_root, "flow_grpo", "align_logs", "flow_logs", "debug_metrics.txt")
 
+# Timestep at which to append log_prob/ratio/policy_loss to debug_metrics.txt (align with flow_grpo)
+_DEBUG_GRPO_TIMESTEP = [18]
+
+
+def _append_grpo_timestep_debug_metrics(
+    filepath: str,
+    batch_index: int,
+    timestep_j: int,
+    gathered_log_prob: list[float],
+    gathered_ratio: list[float],
+    clipped_loss: list[float],
+    unclipped_loss: list[float],
+    policy_loss: float,
+    latents_j: torch.tensor,
+    next_latents_j: torch.tensor,
+    timesteps_j: torch.tensor,
+    old_log_probs_j: torch.tensor,
+    advantages_j: torch.tensor
+) -> None:
+    """
+    debug_path,
+    batch_index,
+    j,
+    gathered_log_prob_t.cpu().tolist(),
+    gathered_ratio_t.cpu().tolist(),
+    clipped_loss.item(),
+    unclipped_loss.item(),
+    policy_loss_j.item(),
+    latents_j,
+    next_latents_j,
+    timesteps_j,
+    old_log_probs_j,
+    advantages_j,
+    """
+    """Append GRPO log_prob/ratio/policy_loss at a timestep to file (same format as flow_grpo)."""
+    with open(filepath, "a") as f:
+        if timestep_j in _DEBUG_GRPO_TIMESTEP:
+            f.write(f"\n=== log_probsat timestep {timestep_j} batch {batch_index} ===\n")
+            for v in gathered_log_prob:
+                f.write(f"{v}, ")
+            f.write(f"\n")
+            f.write(
+                f"log_prob: global_batch_size: {len(gathered_log_prob)}, min: {min(gathered_log_prob)}, "
+                f"max: {max(gathered_log_prob)}, mean: {sum(gathered_log_prob) / len(gathered_log_prob)}\n"
+            )
+            f.write(f"\n=== ratios at timestep {timestep_j} batch {batch_index} ===\n")
+            for v in gathered_ratio:
+                f.write(f"{v}, ")
+            f.write("\n")
+            f.write(
+                f"ratio: global_batch_size: {len(gathered_ratio)}, min: {min(gathered_ratio)}, "
+                f"max: {max(gathered_ratio)}, mean: {sum(gathered_ratio) / len(gathered_ratio)}\n"
+            )
+            f.write(f"=== clipped_loss at timestep {timestep_j} batch {batch_index} ===: {clipped_loss}\n")
+            f.write(f"=== unclipped_loss at timestep {timestep_j} batch {batch_index} ===: {unclipped_loss}\n")
+            f.write(f"=== latents_j.shape at timestep {timestep_j} batch {batch_index} ===: {latents_j.shape}\n")
+            f.write(f"=== next_latents_j.shape at timestep {timestep_j} batch {batch_index} ===: {next_latents_j.shape}\n")
+            f.write(f"=== timesteps_j.shape at timestep {timestep_j} batch {batch_index} ===: {timesteps_j.shape}\n")
+            f.write(f"=== old_log_probs_j.shape at timestep {timestep_j} batch {batch_index} ===: {old_log_probs_j.shape}\n")
+            f.write(f"=== advantages_j.shape at timestep {timestep_j} batch {batch_index} ===: {advantages_j.shape}\n")
+
+        f.write(f"=== policy_loss at timestep {timestep_j} batch {batch_index} ===\n")
+        f.write(f"{policy_loss}\n")
+
 
 def _to_device_dtype(
     d: dict[str, Any],
@@ -221,7 +285,12 @@ def shuffle_training_batches(
         return collected
     perm = torch.randperm(B, device=device)
 
-    logger.info(f"shuffle_training_batches perm: {perm}")
+    # myregion debug
+    # hardcode perm:
+    perm = torch.tensor([14,  2,  5,  1, 12,  3, 11,  9,  4, 13,  8,  6,  7,  0, 15, 10], device='cuda')
+    logger.info(f"hardcoded shuffle perm: {perm}")
+    # endregion
+
     shuffled = _apply_perm_to_training_batch(cat, perm)
     return split_training_batch(shuffled, len(collected))
 
@@ -269,6 +338,19 @@ class RLPipeline(TrainingPipeline):
 
         logger.info("Initialized RLPipeline with algorithm: %s",
                     fastvideo_args.rl_args.rl_algorithm)
+
+        # myregion debug
+        # initialize and clean debug log file 
+        world_group = get_world_group()
+        if world_group.rank == 0:
+            out_dir = ALIGN_FV_LOGS_DIR
+            os.makedirs(out_dir, exist_ok=True)
+            metrics_path = os.path.join(out_dir, "debug_metrics.txt")
+            with open(metrics_path, "w") as f:
+                f.write(f"\n")
+            with open(os.path.join(out_dir, "prompts.txt"), "w") as f:
+                f.write("\n")
+        # end region
 
     def initialize_training_pipeline(self, training_args: TrainingArgs):
         """Initialize the RL training pipeline with algorithm, reward and value models."""
@@ -1477,15 +1559,17 @@ class RLPipeline(TrainingPipeline):
         if use_saved_context:
             self.transformer.train()
 
-        return sde_step_with_logprob(scheduler,
-                                     noise_pred.float(),
-                                     timesteps,
-                                     latents.float(),
-                                     prev_sample=next_latents.float(),
-                                     return_dt_and_std_dev_t=True)
+        result = sde_step_with_logprob(scheduler,
+                                       noise_pred.float(),
+                                       timesteps,
+                                       latents.float(),
+                                       prev_sample=next_latents.float(),
+                                       return_dt_and_std_dev_t=True)
+
+        return result
 
     def _compute_grpo_loss(
-            self, training_batch: TrainingBatch
+            self, training_batch: TrainingBatch, batch_index: int = 0
     ) -> tuple[torch.Tensor, dict[str, Any]]:
         """
         Compute GRPO loss (policy loss + KL loss) with per-timestep backward to avoid OOM.
@@ -1742,6 +1826,41 @@ class RLPipeline(TrainingPipeline):
             )
             policy_loss_j = torch.maximum(unclipped_loss, clipped_loss).mean()
 
+            # myregion debug: append log_probs, ratio, policy_loss at timestep 18 to fv_logs/debug_metrics.txt (same format as flow_grpo)
+            log_prob_1d = log_prob.view(-1).contiguous().float()
+            ratio_1d = ratio.view(-1).contiguous().float()
+            wg = get_world_group()
+            gathered_log_prob_t = wg.all_gather(log_prob_1d, dim=0) if world_size > 1 else log_prob_1d
+            gathered_ratio_t = wg.all_gather(ratio_1d, dim=0) if world_size > 1 else ratio_1d
+
+            if getattr(self, "global_rank", 0) == 0:
+                os.makedirs(ALIGN_FV_LOGS_DIR, exist_ok=True)
+                debug_path = os.path.join(ALIGN_FV_LOGS_DIR, "debug_metrics.txt")
+                _append_grpo_timestep_debug_metrics(
+                    debug_path,
+                    batch_index,
+                    j,
+                    gathered_log_prob_t.cpu().tolist(),
+                    gathered_ratio_t.cpu().tolist(),
+                    clipped_loss.cpu().tolist(),
+                    unclipped_loss.cpu().tolist(),
+                    policy_loss_j.item(),
+                    latents_j,
+                    next_latents_j,
+                    timesteps_j,
+                    old_log_probs_j,
+                    advantages_j,
+                )
+
+            '''
+            latents_j = latents[:, j]  # [B, C, T, H, W]
+            next_latents_j = latents[:, j + 1]  # [B, C, T, H, W]
+            timesteps_j = timesteps[:, j]  # [B]
+            old_log_probs_j = old_log_probs[:, j]  # [B]
+            advantages_j = advantages[:, j]  # [B]
+            '''
+            # endregion
+
             # Total loss for this timestep (scaled for averaging)
             total_loss_j = (policy_loss_j + kl_beta * kl_loss_j)
 
@@ -1863,7 +1982,7 @@ class RLPipeline(TrainingPipeline):
                 out_dir = ALIGN_FV_LOGS_DIR
                 os.makedirs(out_dir, exist_ok=True)
                 metrics_path = os.path.join(out_dir, "debug_metrics.txt")
-                with open(metrics_path, "w" if b == 0 else "a") as f:
+                with open(metrics_path, "a") as f:
                     f.write(f"=== batch {b} ===\n")
             tb = TrainingBatch()
             tb.current_timestep = getattr(training_batch, "current_timestep", 0)
@@ -1880,7 +1999,7 @@ class RLPipeline(TrainingPipeline):
             os.makedirs(out_dir, exist_ok=True)
             batches_data = getattr(self, "_debug_batches_data", [])
             # prompts.txt: gathered prompts per batch with header === batch b ===
-            with open(os.path.join(out_dir, "prompts.txt"), "w") as f:
+            with open(os.path.join(out_dir, "prompts.txt"), "a") as f:
                 for b, (_, _, prompts_list) in enumerate(batches_data):
                     if b > 0:
                         f.write("\n")
@@ -1897,9 +2016,9 @@ class RLPipeline(TrainingPipeline):
                         prompt = prompts_list[i] if i < len(prompts_list) else ""
                         f.write(f"{float(rewards_arr[i])}, {float(advantages_arr[i])}, {prompt}\n")
             logger.info("RL_METRIC: Debug region wrote prompts and appended rewards/advantages to fv_logs; stopping.")
-            for attr in ("_debug_rewards_advantages_log_pending", "_debug_first_batch_metrics", "_debug_batches_data", "_debug_current_batch_index"):
-                if hasattr(self, attr):
-                    delattr(self, attr)
+            # for attr in ("_debug_rewards_advantages_log_pending", "_debug_first_batch_metrics", "_debug_batches_data", "_debug_current_batch_index"):
+            #     if hasattr(self, attr):
+            #         delattr(self, attr)
             # raise KeyboardInterrupt("Debug stop after logging prompts and rewards/advantages.")
 
         # endregion
@@ -1926,9 +2045,8 @@ class RLPipeline(TrainingPipeline):
         # endregion
 
         # Training: backward, then optimizer step and log per batch
-        self.optimizer.zero_grad(set_to_none=True)
         for batch_idx, tb in enumerate(collected):
-            total_loss, metrics = self._compute_grpo_loss(tb)
+            total_loss, metrics = self._compute_grpo_loss(tb, batch_index=batch_idx)
             tb.policy_loss = metrics.get("policy_loss", 0.0)
             tb.kl_divergence = metrics.get("kl_loss", 0.0)
             tb.importance_ratio = metrics.get("importance_ratio_mean", 1.0)
