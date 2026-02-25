@@ -362,11 +362,6 @@ class DenoisingStage(PipelineStage):
             }
             rl_per_step_contexts = []
 
-        # Debug: one generator (seed 42, cpu) for all SDE steps so variance_noise is deterministic and comparable across codebases.
-        # debug_sde_generator = None
-        # if rl_data is not None and getattr(rl_data, "collect_debug_sums", False):
-        #     debug_sde_generator = torch.Generator("cpu").manual_seed(42)
-        debug_sde_generator = torch.Generator("cpu").manual_seed(42)
 
 
         # Run denoising loop
@@ -582,10 +577,9 @@ class DenoisingStage(PipelineStage):
                                 t,
                                 prev_latents.float(),
                                 prev_sample=None,
-                                generator=debug_sde_generator,
+                                generator=None,
                                 deterministic=False,
                                 return_dt_and_std_dev_t=True,
-                                return_variance_noise_sum=True,
                             )
                             rl_data.debug_intermediate_latents_per_step.append(latents.double().sum().item())
                             rl_data.debug_variance_noise_sum_per_step.append(variance_noise_sum)
@@ -598,7 +592,7 @@ class DenoisingStage(PipelineStage):
                                 prev_sample=None,
                                 generator=None,
                                 deterministic=False,
-                                return_dt_and_std_dev_t=True,
+                                return_dt_and_std_dev_t=True
                             )
                         rl_log_probs.append(log_prob)
                     else:
