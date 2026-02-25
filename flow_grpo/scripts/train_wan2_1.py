@@ -43,7 +43,43 @@ from torch.utils.data import Dataset, DataLoader, Sampler
 from flow_grpo.ema import EMAModuleWrapper
 import imageio
 from safetensors.torch import save_file as save_safetensors
+import torch.distributed as dist
 tqdm = partial(tqdm.tqdm, dynamic_ncols=True)
+
+
+def gather_variable_length_tensors(tensor, process_group=None, dim=0):
+    """
+    Gather tensors from all ranks along `dim`, allowing different sizes per rank
+    (only the size along `dim` may differ; other dimensions must match).
+    Returns the concatenation of all tensors along `dim`, on all ranks.
+
+    Use this instead of accelerator.gather() when per-rank batch sizes can differ.
+    """
+    if not dist.is_initialized():
+        return tensor
+    group = process_group
+    world_size = dist.get_world_size(group)
+    local_size = tensor.shape[dim]
+    # All-gather sizes so every rank knows each rank's length
+    size_tensor = torch.tensor([local_size], dtype=torch.long, device=tensor.device)
+    all_sizes = [torch.zeros(1, dtype=torch.long, device=tensor.device) for _ in range(world_size)]
+    dist.all_gather(all_sizes, size_tensor, group=group)
+    max_size = max(s.item() for s in all_sizes)
+    # Pad local tensor along dim to max_size so we can all_gather
+    pad_len = max_size - local_size
+    if pad_len > 0:
+        pad_shape = list(tensor.shape)
+        pad_shape[dim] = pad_len
+        padding = torch.zeros(pad_shape, dtype=tensor.dtype, device=tensor.device)
+        padded = torch.cat([tensor, padding], dim=dim)
+    else:
+        padded = tensor
+    tensor_list = [torch.empty_like(padded) for _ in range(world_size)]
+    dist.all_gather(tensor_list, padded, group=group)
+    sizes = [all_sizes[i].item() for i in range(world_size)]
+    # Slice off padding along batch (dim 0): tensor[:size]
+    parts = [tensor_list[i][:sizes[i]] for i in range(world_size)]
+    return torch.cat(parts, dim=dim)
 
 
 FLAGS = flags.FLAGS
@@ -132,8 +168,7 @@ class DistributedKRepeatSampler(Sampler):
         while True:
             # 生成确定性的随机序列，确保所有卡同步
             g = torch.Generator()
-            g.manual_seed(self.seed + self.epoch)
-            print(f"sampler manual_seed: {self.seed + self.epoch}")
+            g.manual_seed(self.seed + self.epoch + 10)
             # g.manual_seed(self.hardcoded_manual_seed)
             # self.hardcoded_manual_seed += 1
             # print('epoch', self.epoch)
@@ -995,6 +1030,10 @@ def main(_):
 
         # Get the mask for samples where all advantages are zero across the time dimension
         mask = (samples["advantages"].abs().sum(dim=1) != 0)
+
+        # myregion debug print mask
+        print(f"rank [{accelerator.process_index}]: mask: {mask}")
+        # end region
         
         # If the number of True values in mask is not divisible by config.sample.num_batches_per_epoch,
         # randomly change some False values to True to make it divisible
@@ -1030,14 +1069,13 @@ def main(_):
         for inner_epoch in range(config.train.num_inner_epochs):
             # myregion shuffle
             # shuffle samples along batch dimension
-            g = torch.Generator(device='cuda').manual_seed(50)
-            # perm = torch.randperm(total_batch_size, device=accelerator.device, generator=g)
-            perm = torch.randperm(total_batch_size, device='cuda', generator=g)
+            # g = torch.Generator(device='cuda').manual_seed(50)
+            perm = torch.randperm(total_batch_size, device='cuda')
             # myregion debug
             # hardcode perm:
             # perm = torch.tensor([14,  2,  5,  1, 12,  3, 11,  9,  4, 13,  8,  6,  7,  0, 15, 10], device='cuda')
-            if accelerator.is_main_process:
-                print(f"hardcoded shuffle perm: {perm}")
+            
+            print(f"rank[{accelerator.process_index}]: shuffle perm: {perm}")
             # endregion
             # perm = torch.arange(total_batch_size, device=accelerator.device)
             samples = {k: v[perm] for k, v in samples.items()}
@@ -1070,8 +1108,9 @@ def main(_):
             ]
             # myregion debug
             for batch_index, sample in enumerate(samples_batched):
-                mean_adv = sample["advantages"].mean(dim=1)  # [micoe_batch] per rank
-                gathered_mean_adv = accelerator.gather(mean_adv).cpu().tolist()
+                adv = sample["advantages"].clone()
+                mean_adv = adv.mean(dim=1)  # [micoe_batch] per rank
+                gathered_mean_adv = gather_variable_length_tensors(mean_adv).cpu().view(-1).tolist()
                 if accelerator.is_main_process:
                     print(f"==== training batch {batch_index} ====")
                     print(f"mean(advantages) (global batch size {len(gathered_mean_adv)}): {gathered_mean_adv}")
@@ -1155,10 +1194,12 @@ def main(_):
                         os.makedirs(ALIGN_FLOW_LOGS_DIR, exist_ok=True)
                         debug_path = os.path.join(ALIGN_FLOW_LOGS_DIR, "debug_metrics.txt")
 
-                        log_prob_1d = log_prob.view(-1).contiguous().float()
-                        ratio_1d = ratio.view(-1).contiguous().float()
-                        gathered_log_prob = accelerator.gather(log_prob_1d).cpu().tolist()
-                        gathered_ratio = accelerator.gather(ratio_1d).cpu().tolist()
+                        log_prob_cloned = log_prob.clone()
+                        ratio_cloned = ratio.clone()
+                        gathered_log_prob = gather_variable_length_tensors(log_prob_cloned)
+                        gathered_ratio = gather_variable_length_tensors(ratio_cloned)
+                        gathered_log_prob = gathered_log_prob.cpu().view(-1).tolist()
+                        gathered_ratio =  gathered_ratio.cpu().view(-1).tolist()
                         
                         if accelerator.is_main_process:
                             with open(debug_path, "a") as f:

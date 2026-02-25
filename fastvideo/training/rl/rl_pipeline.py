@@ -130,6 +130,40 @@ def _append_grpo_timestep_debug_metrics(
         f.write(f"=== policy_loss at timestep {timestep_j} batch {batch_index} ===\n")
         f.write(f"{policy_loss}\n")
 
+def gather_variable_length_tensors(tensor, process_group=None, dim=0):
+    """
+    Gather tensors from all ranks along `dim`, allowing different sizes per rank
+    (only the size along `dim` may differ; other dimensions must match).
+    Returns the concatenation of all tensors along `dim`, on all ranks.
+
+    Use this instead of accelerator.gather() when per-rank batch sizes can differ.
+    """
+    if not dist.is_initialized():
+        return tensor
+    group = process_group
+    world_size = dist.get_world_size(group)
+    local_size = tensor.shape[dim]
+    # All-gather sizes so every rank knows each rank's length
+    size_tensor = torch.tensor([local_size], dtype=torch.long, device=tensor.device)
+    all_sizes = [torch.zeros(1, dtype=torch.long, device=tensor.device) for _ in range(world_size)]
+    dist.all_gather(all_sizes, size_tensor, group=group)
+    max_size = max(s.item() for s in all_sizes)
+    # Pad local tensor along dim to max_size so we can all_gather
+    pad_len = max_size - local_size
+    if pad_len > 0:
+        pad_shape = list(tensor.shape)
+        pad_shape[dim] = pad_len
+        padding = torch.zeros(pad_shape, dtype=tensor.dtype, device=tensor.device)
+        padded = torch.cat([tensor, padding], dim=dim)
+    else:
+        padded = tensor
+    tensor_list = [torch.empty_like(padded) for _ in range(world_size)]
+    dist.all_gather(tensor_list, padded, group=group)
+    sizes = [all_sizes[i].item() for i in range(world_size)]
+    # Slice off padding along batch (dim 0): tensor[:size]
+    parts = [tensor_list[i][:sizes[i]] for i in range(world_size)]
+    return torch.cat(parts, dim=dim)
+
 
 def _to_device_dtype(
     d: dict[str, Any],
@@ -226,6 +260,12 @@ def mask_training_batches(
             rand_device = false_indices.device
             random_indices = torch.randperm(len(false_indices), device=rand_device)[:num_to_change]
             mask[false_indices[random_indices]] = True
+
+    # myregion debug print mask
+    wg = get_world_group()
+    global_rank = wg.rank
+    print(f"rank [{global_rank}]: mask: {mask}")
+    # end region
     masked = _apply_mask_to_training_batch(cat, mask)
     return split_training_batch(masked, num_batches)
 
@@ -283,12 +323,23 @@ def shuffle_training_batches(
     B = get_training_batch_sample_size(cat)
     if B <= 1:
         return collected
-    perm = torch.randperm(B, device=device)
+    g = torch.Generator(device='cuda').manual_seed(50)
+    perm = torch.randperm(B, device=device, generator=g)
 
     # myregion debug
     # hardcode perm:
-    perm = torch.tensor([14,  2,  5,  1, 12,  3, 11,  9,  4, 13,  8,  6,  7,  0, 15, 10], device='cuda')
-    logger.info(f"hardcoded shuffle perm: {perm}")
+    # perm = torch.tensor([14,  2,  5,  1, 12,  3, 11,  9,  4, 13,  8,  6,  7,  0, 15, 10], device='cuda')
+    wg = get_world_group()
+    global_rank = wg.rank
+    print(f"rank [{global_rank}]: shuffle perm: {perm}")
+
+    '''
+    from flow_grpo:
+    rank[2]: tensor([8, 6, 2, 5, 1, 12, 3, 7, 0, 11, 9, 4, 13, 10])
+    rank[3]: tensor([8, 6, 2, 5, 1, 12, 3, 7, 0, 11, 9, 4, 13, 10])
+    rank[1]: tensor([8, 6, 2, 5, 1, 12, 3, 7, 0, 11, 9, 4, 13, 10])
+    rank[0]: tensor([14, 2, 5, 1, 12, 3, 11, 9, 4, 13, 8, 6, 7, 0, 15, 10])
+    '''
     # endregion
 
     shuffled = _apply_perm_to_training_batch(cat, perm)
@@ -999,6 +1050,8 @@ class RLPipeline(TrainingPipeline):
             decoded_videos = all_decoded_videos_list[0]  # [B, C, T, H, W]
             training_batch.prompt_ids = None
 
+        logger.info(f"decoded_videos(collected) dtype, device: {decoded_videos.dtype}, {decoded_videos.device}")
+
         # Optionally replace decoded videos with flow_grpo-saved tensors for reward verification
         if os.environ.get("USE_ALIGN_DECODED_VIDEOS") and sample_time_per_prompt == 1:
             from safetensors.torch import load_file as load_safetensors
@@ -1024,6 +1077,7 @@ class RLPipeline(TrainingPipeline):
                     )
             else:
                 logger.warning("USE_ALIGN_DECODED_VIDEOS: file not found %s", path)
+            logger.info(f"decoded_videos(saved) dtype, device: {decoded_videos.dtype}, {decoded_videos.device}")
 
         # Store old log probs for importance ratio computation
         training_batch.old_log_probs = training_batch.log_probs.clone()
@@ -1314,7 +1368,7 @@ class RLPipeline(TrainingPipeline):
                 # All-gather rewards: each rank has [B], result is [B * world_size]
                 rewards_1d = rewards.view(-1) if rewards.dim() > 1 else rewards
                 rewards_1d = rewards_1d.contiguous().to(self.device)
-                gathered_rewards = wg.all_gather(rewards_1d, dim=0)
+                gathered_rewards = wg.all_gather(rewards_1d)
                 # Gather prompts: broadcast each rank's list in turn
                 gathered_prompts_lists = []
                 for src in range(world_size):
@@ -1827,11 +1881,10 @@ class RLPipeline(TrainingPipeline):
             policy_loss_j = torch.maximum(unclipped_loss, clipped_loss).mean()
 
             # myregion debug: append log_probs, ratio, policy_loss at timestep 18 to fv_logs/debug_metrics.txt (same format as flow_grpo)
-            log_prob_1d = log_prob.view(-1).contiguous().float()
-            ratio_1d = ratio.view(-1).contiguous().float()
-            wg = get_world_group()
-            gathered_log_prob_t = wg.all_gather(log_prob_1d, dim=0) if world_size > 1 else log_prob_1d
-            gathered_ratio_t = wg.all_gather(ratio_1d, dim=0) if world_size > 1 else ratio_1d
+            log_prob_clone = log_prob.clone().contiguous()
+            ratio_clone = ratio.clone().contiguous()
+            gathered_log_prob_t = gather_variable_length_tensors(log_prob_clone) if world_size > 1 else log_prob_clone
+            gathered_ratio_t = gather_variable_length_tensors(ratio_clone) if world_size > 1 else ratio_clone
 
             if getattr(self, "global_rank", 0) == 0:
                 os.makedirs(ALIGN_FV_LOGS_DIR, exist_ok=True)
@@ -2031,15 +2084,13 @@ class RLPipeline(TrainingPipeline):
         collected = shuffle_training_batches(collected, device=self.device)
         # endregion shuffling
 
-        # myregion print rewards after masking & shuffling
-        wg = get_world_group()
+        # myregion debug print rewards after masking & shuffling
         for batch_index, tb in enumerate(collected):
             adv = tb.advantages  # [B, num_steps] or [B]
-            mean_adv = adv.mean(dim=1) if adv.dim() == 2 else adv.view(-1)
-            mean_adv = mean_adv.contiguous().to(self.device)
-            gathered_mean_adv = wg.all_gather(mean_adv, dim=0)
+            adv = adv.clone().contiguous()
+            gathered_adv = gather_variable_length_tensors(adv)
             if self.global_rank == 0:
-                gathered_list = gathered_mean_adv.cpu().tolist()
+                gathered_list = gathered_adv.cpu().tolist()
                 print(f"==== training batch {batch_index} ====")
                 print(f"mean(advantages) (global batch size {len(gathered_list)}): {gathered_list}")
         # endregion
