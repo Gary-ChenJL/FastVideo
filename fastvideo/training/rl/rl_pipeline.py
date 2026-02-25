@@ -490,6 +490,11 @@ class RLPipeline(TrainingPipeline):
             logger.info("Generator EMA disabled (use_ema=False and ema_decay <= 0.0)")
         # end region
 
+        # set random seed
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed_all(self.seed)
+
     def _build_sampling_pipeline(self, training_args: TrainingArgs):
         return self._create_inference_pipeline(training_args,
                                                dit_cpu_offload=False)
