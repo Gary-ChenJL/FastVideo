@@ -91,6 +91,8 @@ miscellaneous_args=(
   --checkpoints_total_limit 67
   --dit_precision "fp32"
   --num_euler_timesteps 50
+  --use_ema True
+  --ema_decay 0.9
   --ema_start_step 0
   --enable-gradient-checkpointing-type "full"
 )

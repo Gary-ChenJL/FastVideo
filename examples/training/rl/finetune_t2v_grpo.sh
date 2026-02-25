@@ -104,6 +104,8 @@ miscellaneous_args=(
   --dit_precision "fp32"
   # --dit_precision "bf16"
   --num_euler_timesteps 50
+  --use_ema True
+  --ema_decay 0.9
   --ema_start_step 0
   # --resume_from_checkpoint "checkpoints/wan_t2v_grpo/checkpoint-XXX"
   --enable-gradient-checkpointing-type "full"

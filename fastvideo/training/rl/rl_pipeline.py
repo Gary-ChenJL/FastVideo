@@ -13,9 +13,10 @@ Reference:
 import json
 import math
 import os
+from contextlib import nullcontext
+from copy import deepcopy
 from types import SimpleNamespace
 from typing import Any
-from copy import deepcopy
 
 import imageio
 import numpy as np
@@ -47,7 +48,7 @@ from fastvideo.training.rl.rewards import (create_reward_models,
 from .rl_utils import (
     compute_reward_statistics, )
 from fastvideo.training.rl.stat_tracking import PerPromptStatTracker
-from fastvideo.training.training_utils import (get_scheduler)
+from fastvideo.training.training_utils import (EMA_FSDP, get_scheduler)
 from fastvideo.utils import get_compute_dtype, shallow_asdict
 from fastvideo.dataset.rl_prompt_dataset import build_rl_prompt_dataloader
 
@@ -471,6 +472,24 @@ class RLPipeline(TrainingPipeline):
         logger.info("RL pipeline initialization complete")
         self.sampling_pipeline = self._build_sampling_pipeline(training_args)
 
+        # myregion ema code
+        # EMA decay and update_step_interval match flow_grpo (decay=0.9, update_step_interval=8)
+        self.generator_ema: EMA_FSDP | None = None
+        self.ema_update_step_interval = 8
+        ema_decay_grpo = 0.9
+        if (getattr(training_args, "use_ema", False)
+                or (getattr(training_args, "ema_decay", 0.0) is not None
+                    and getattr(training_args, "ema_decay", 0.0) > 0.0)):
+            self.generator_ema = EMA_FSDP(
+                self.transformer, decay=ema_decay_grpo, mode="local_shard"
+            )
+            logger.info(
+                "Initialized generator EMA with decay=%s, update_step_interval=%s",
+                ema_decay_grpo, self.ema_update_step_interval)
+        else:
+            logger.info("Generator EMA disabled (use_ema=False and ema_decay <= 0.0)")
+        # end region
+
     def _build_sampling_pipeline(self, training_args: TrainingArgs):
         return self._create_inference_pipeline(training_args,
                                                dit_cpu_offload=False)
@@ -667,123 +686,138 @@ class RLPipeline(TrainingPipeline):
         if getattr(self, "transformer_2", None) is not None:
             self.transformer_2.eval()
 
+        # myregion ema code
+        use_ema_for_validation = (
+            getattr(self, "generator_ema", None) is not None
+            and global_step >= getattr(training_args, "ema_start_step", 0)
+        )
+        if use_ema_for_validation:
+            logger.info("Using EMA model for validation", local_main_process_only=False)
+        ema_ctx = (
+            self.generator_ema.apply_to_model(self.transformer)
+            if use_ema_for_validation and self.generator_ema is not None
+            else nullcontext()
+        )
+        # end region
+
         validation_steps = training_args.validation_sampling_steps.split(",")
         validation_steps = [int(step) for step in validation_steps]
         validation_steps = [step for step in validation_steps if step > 0]
         world_group = get_world_group()
         num_sp_groups = world_group.world_size // self.sp_group.world_size
 
-        for num_inference_steps in validation_steps:
-            logger.info(
-                "rank: %s: num_inference_steps: %s",
-                self.global_rank,
-                num_inference_steps,
-                local_main_process_only=False,
-            )
-            step_videos: list[list[np.ndarray]] = []
-            step_captions: list[str] = []
-
-            for validation_batch in validation_dataloader:
-                batch = self._prepare_validation_batch(
-                    sampling_param,
-                    training_args,
-                    validation_batch,
-                    num_inference_steps,
-                )
+        with ema_ctx:
+            for num_inference_steps in validation_steps:
                 logger.info(
-                    "rank: %s: rank_in_sp_group: %s, batch.prompt: %s",
+                    "rank: %s: num_inference_steps: %s",
                     self.global_rank,
-                    self.rank_in_sp_group,
-                    batch.prompt,
+                    num_inference_steps,
                     local_main_process_only=False,
                 )
+                step_videos: list[list[np.ndarray]] = []
+                step_captions: list[str] = []
 
-                assert batch.prompt is not None and isinstance(
-                    batch.prompt, str)
-                step_captions.append(batch.prompt)
+                for validation_batch in validation_dataloader:
+                    batch = self._prepare_validation_batch(
+                        sampling_param,
+                        training_args,
+                        validation_batch,
+                        num_inference_steps,
+                    )
+                    logger.info(
+                        "rank: %s: rank_in_sp_group: %s, batch.prompt: %s",
+                        self.global_rank,
+                        self.rank_in_sp_group,
+                        batch.prompt,
+                        local_main_process_only=False,
+                    )
 
-                output_batch = self.validation_pipeline.forward(
-                    batch, training_args)
-                samples = output_batch.output
+                    assert batch.prompt is not None and isinstance(
+                        batch.prompt, str)
+                    step_captions.append(batch.prompt)
 
-                if self.rank_in_sp_group != 0:
-                    continue
+                    output_batch = self.validation_pipeline.forward(
+                        batch, training_args)
+                    samples = output_batch.output
 
-                video = rearrange(samples, "b c t h w -> t b c h w")
-                frames = []
-                for x in video:
-                    x = torchvision.utils.make_grid(x, nrow=6)
-                    x = x.transpose(0, 1).transpose(1, 2).squeeze(-1)
-                    frames.append((x * 255).numpy().astype(np.uint8))
-                step_videos.append(frames)
+                    if self.rank_in_sp_group != 0:
+                        continue
 
-            if self.rank_in_sp_group == 0:
-                if self.global_rank == 0:
-                    all_videos = step_videos
-                    all_captions = step_captions
+                    video = rearrange(samples, "b c t h w -> t b c h w")
+                    frames = []
+                    for x in video:
+                        x = torchvision.utils.make_grid(x, nrow=6)
+                        x = x.transpose(0, 1).transpose(1, 2).squeeze(-1)
+                        frames.append((x * 255).numpy().astype(np.uint8))
+                    step_videos.append(frames)
 
-                    for sp_group_idx in range(1, num_sp_groups):
-                        src_rank = sp_group_idx * self.sp_world_size
-                        recv_videos = world_group.recv_object(src=src_rank)
-                        recv_captions = world_group.recv_object(src=src_rank)
-                        all_videos.extend(recv_videos)
-                        all_captions.extend(recv_captions)
+                if self.rank_in_sp_group == 0:
+                    if self.global_rank == 0:
+                        all_videos = step_videos
+                        all_captions = step_captions
 
-                    video_filenames = []
-                    for i, (video_frames, caption) in enumerate(
-                            zip(all_videos, all_captions, strict=True)):
-                        os.makedirs(training_args.output_dir, exist_ok=True)
-                        filename = os.path.join(
-                            training_args.output_dir,
-                            f"validation_step_{global_step}_inference_steps_{num_inference_steps}_video_{i}.mp4",
-                        )
-                        imageio.mimsave(filename,
-                                        video_frames,
-                                        fps=sampling_param.fps)
-                        video_filenames.append(filename)
+                        for sp_group_idx in range(1, num_sp_groups):
+                            src_rank = sp_group_idx * self.sp_world_size
+                            recv_videos = world_group.recv_object(src=src_rank)
+                            recv_captions = world_group.recv_object(src=src_rank)
+                            all_videos.extend(recv_videos)
+                            all_captions.extend(recv_captions)
 
-                    artifacts = []
-                    video_logs: dict[str, Any] = {}
-                    for i, (filename, caption) in enumerate(
-                            zip(video_filenames, all_captions, strict=True)):
-                        video_artifact = self.tracker.video(filename,
-                                                            caption=caption)
-                        if video_artifact is not None:
-                            artifacts.append(video_artifact)
-                            video_logs[
-                                f"validation_video_{num_inference_steps}_steps_{i}"] = video_artifact
-                    if artifacts:
-                        logs = {
-                            f"validation_videos_{num_inference_steps}_steps":
-                            artifacts
-                        }
-                        self.tracker.log_artifacts(logs, global_step)
-                        if video_logs:
-                            self.tracker.log(video_logs, global_step)
+                        video_filenames = []
+                        for i, (video_frames, caption) in enumerate(
+                                zip(all_videos, all_captions, strict=True)):
+                            os.makedirs(training_args.output_dir, exist_ok=True)
+                            filename = os.path.join(
+                                training_args.output_dir,
+                                f"validation_step_{global_step}_inference_steps_{num_inference_steps}_video_{i}.mp4",
+                            )
+                            imageio.mimsave(filename,
+                                            video_frames,
+                                            fps=sampling_param.fps)
+                            video_filenames.append(filename)
 
-                    # Compute mean reward on validation videos and log to tracker
-                    if (self.reward_models is not None and all_videos
-                            and all_captions):
-                        # Convert all_videos (list of list of [H,W,C] frames) to [B, C, T, H, W]
-                        video_tensors = []
-                        for frames_list in all_videos:
-                            # frames_list: list of (H, W, C) uint8
-                            arr = np.stack(frames_list, axis=0)
-                            t = torch.from_numpy(arr).float() / 255.0
-                            t = t.permute(3, 0, 1, 2)
-                            video_tensors.append(t)
-                        videos_batch = torch.stack(video_tensors)
-                        reward_scores = self.reward_models.compute_reward(
-                            videos_batch, all_captions)
-                        validation_reward_mean = reward_scores.mean().item()
-                        self.tracker.log(
-                            {"validation_reward_mean": validation_reward_mean},
-                            global_step,
-                        )
-                        logger.info(f"validation_reward_mean: {validation_reward_mean}, global_step: {global_step}")
-                else:
-                    world_group.send_object(step_videos, dst=0)
-                    world_group.send_object(step_captions, dst=0)
+                        artifacts = []
+                        video_logs: dict[str, Any] = {}
+                        for i, (filename, caption) in enumerate(
+                                zip(video_filenames, all_captions, strict=True)):
+                            video_artifact = self.tracker.video(filename,
+                                                                caption=caption)
+                            if video_artifact is not None:
+                                artifacts.append(video_artifact)
+                                video_logs[
+                                    f"validation_video_{num_inference_steps}_steps_{i}"] = video_artifact
+                        if artifacts:
+                            logs = {
+                                f"validation_videos_{num_inference_steps}_steps":
+                                artifacts
+                            }
+                            self.tracker.log_artifacts(logs, global_step)
+                            if video_logs:
+                                self.tracker.log(video_logs, global_step)
+
+                        # Compute mean reward on validation videos and log to tracker
+                        if (self.reward_models is not None and all_videos
+                                and all_captions):
+                            # Convert all_videos (list of list of [H,W,C] frames) to [B, C, T, H, W]
+                            video_tensors = []
+                            for frames_list in all_videos:
+                                # frames_list: list of (H, W, C) uint8
+                                arr = np.stack(frames_list, axis=0)
+                                t = torch.from_numpy(arr).float() / 255.0
+                                t = t.permute(3, 0, 1, 2)
+                                video_tensors.append(t)
+                            videos_batch = torch.stack(video_tensors)
+                            reward_scores = self.reward_models.compute_reward(
+                                videos_batch, all_captions)
+                            validation_reward_mean = reward_scores.mean().item()
+                            self.tracker.log(
+                                {"validation_reward_mean": validation_reward_mean},
+                                global_step,
+                            )
+                            logger.info(f"validation_reward_mean: {validation_reward_mean}, global_step: {global_step}")
+                    else:
+                        world_group.send_object(step_videos, dst=0)
+                        world_group.send_object(step_captions, dst=0)
 
         training_args.inference_mode = False
         self.transformer.train()
@@ -2117,6 +2151,16 @@ class RLPipeline(TrainingPipeline):
             self._log_grpo_metrics(
                 tb, total_loss, metrics, base_step * M + batch_idx
             )
+
+        # myregion ema code
+        # Use self.current_step (number of optimizer steps so far) to determine EMA update
+        ema_start = getattr(self.training_args, "ema_start_step", 0)
+        effective_step = getattr(self, "current_step", 0)
+        if (getattr(self, "generator_ema", None) is not None
+                and effective_step >= ema_start
+                and (effective_step % getattr(self, "ema_update_step_interval", 8) == 0)):
+            self.generator_ema.update(self.transformer)
+        # end region
 
         training_batch = collected[-1]
         kl_threshold = 0.1
