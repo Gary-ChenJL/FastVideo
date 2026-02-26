@@ -436,6 +436,8 @@ def concat_training_batches(batches: list[TrainingBatch]) -> TrainingBatch:
         total_b = sum((b.raw_latent_shape or (0,))[0] for b in batches)
         out.raw_latent_shape = (total_b,) + tuple(batches[0].raw_latent_shape[1:])
 
+    out.reward_mean = sum(b.reward_mean for b in batches) / len(batches)
+    out.reward_std = sum(b.reward_std for b in batches) / len(batches)
     return out
 
 
@@ -487,6 +489,8 @@ def split_training_batch(batch: TrainingBatch, num_splits: int) -> list[Training
             sub.rl_transformer_forward_kwargs = _slice_kwargs(batch.rl_transformer_forward_kwargs, slice(s, e))
         if batch.raw_latent_shape is not None:
             sub.raw_latent_shape = (sizes[i],) + tuple(batch.raw_latent_shape[1:])
+        sub.reward_mean = batch.reward_mean
+        sub.reward_std = batch.reward_std
         out_batches.append(sub)
     return out_batches
 

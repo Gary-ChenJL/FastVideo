@@ -168,7 +168,7 @@ class DistributedKRepeatSampler(Sampler):
         while True:
             # 生成确定性的随机序列，确保所有卡同步
             g = torch.Generator()
-            g.manual_seed(self.seed + self.epoch + 10)
+            g.manual_seed(self.seed + self.epoch)
             # g.manual_seed(self.hardcoded_manual_seed)
             # self.hardcoded_manual_seed += 1
             # print('epoch', self.epoch)
@@ -1069,8 +1069,8 @@ def main(_):
         for inner_epoch in range(config.train.num_inner_epochs):
             # myregion shuffle
             # shuffle samples along batch dimension
-            # g = torch.Generator(device='cuda').manual_seed(50)
-            perm = torch.randperm(total_batch_size, device='cuda')
+            g = torch.Generator(device='cuda').manual_seed(50)
+            perm = torch.randperm(total_batch_size, device='cuda', generator=g)
             # myregion debug
             # hardcode perm:
             # perm = torch.tensor([14,  2,  5,  1, 12,  3, 11,  9,  4, 13,  8,  6,  7,  0, 15, 10], device='cuda')

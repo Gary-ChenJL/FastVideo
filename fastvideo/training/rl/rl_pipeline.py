@@ -222,6 +222,8 @@ def _apply_mask_to_training_batch(batch: TrainingBatch, mask: torch.Tensor) -> T
         out.rl_transformer_forward_kwargs = _index_kwargs(batch.rl_transformer_forward_kwargs, indices)
     if batch.raw_latent_shape is not None:
         out.raw_latent_shape = (len(indices),) + tuple(batch.raw_latent_shape[1:])
+    out.reward_mean = batch.reward_mean
+    out.reward_std = batch.reward_std
     return out
 
 
@@ -308,6 +310,8 @@ def _apply_perm_to_training_batch(batch: TrainingBatch, perm: torch.Tensor) -> T
         out.rl_transformer_forward_kwargs = _perm_kwargs(batch.rl_transformer_forward_kwargs, perm)
     if batch.raw_latent_shape is not None:
         out.raw_latent_shape = batch.raw_latent_shape
+    out.reward_mean = batch.reward_mean
+    out.reawrd_std = batch.reward_std
     return out
 
 
@@ -325,7 +329,7 @@ def shuffle_training_batches(
     if B <= 1:
         return collected
     g = torch.Generator(device='cuda').manual_seed(50)
-    perm = torch.randperm(B, device=device, generator=g)
+    perm = torch.randperm(B, device=device)
 
     
 
@@ -1160,32 +1164,21 @@ class RLPipeline(TrainingPipeline):
             kl_penalty = training_batch.kl.mean(dim=1)  # [B]
             reward_scores = reward_scores - kl_reward * kl_penalty
 
-        # Store reward scores
+        # Store reward scores (local)
         training_batch.reward_scores = reward_scores.float()
 
-        # Compute reward statistics (local)
-        reward_stats = compute_reward_statistics(training_batch.reward_scores)
+        # All-gather reward scores across ranks, then compute global mean and std
+        wg = get_world_group()
+        rewards_1d = training_batch.reward_scores.detach().clone().view(-1).contiguous().to(self.device)
+        global_reward_scores = gather_variable_length_tensors(
+            rewards_1d, process_group=wg.device_group, dim=0
+        )
+        reward_stats = compute_reward_statistics(global_reward_scores)
         training_batch.reward_mean = reward_stats["reward_mean"]
         training_batch.reward_std = reward_stats["reward_std"]
+        print(f"temporary debug: in compute_rewards: training_batch.reward_scores: {training_batch.reward_scores}")
+        print(f"temporary debug: in compute_rewards: training_batch.reward_mean: {training_batch.reward_mean}")
 
-        # Multi-GPU: allreduce reward sum and count so rank 0 logs mean across all ranks
-        if reward_scores.numel() > 0:
-            world_size = getattr(self, "world_size", 1)
-            if world_size > 1:
-                wg = get_world_group()
-                local_sum = reward_scores.sum().to(self.device)
-                local_count = torch.tensor(reward_scores.numel(),
-                                           device=self.device,
-                                           dtype=local_sum.dtype)
-                wg.all_reduce(local_sum, op=dist.ReduceOp.SUM)
-                wg.all_reduce(local_count, op=dist.ReduceOp.SUM)
-                global_mean = (local_sum / local_count).item()
-                global_count = int(local_count.item())
-                training_batch.reward_mean = global_mean
-            else:
-                global_mean = training_batch.reward_mean
-                global_count = reward_scores.numel()
-            # reward_mean (global_mean) is logged via self.tracker.log in train_one_step
 
         return training_batch
 
@@ -1754,20 +1747,20 @@ class RLPipeline(TrainingPipeline):
 
             # Store metrics for logging (detached to avoid keeping computation graph)
             with torch.no_grad():
-                policy_losses.append(policy_loss_j.detach())
-                kl_losses.append(kl_loss_j.detach())
-                total_losses.append(total_loss_j.detach())
+                policy_losses.append(policy_loss_j.detach().clone())
+                kl_losses.append(kl_loss_j.detach().clone())
+                total_losses.append(total_loss_j.detach().clone())
 
                 # Clip fraction
                 clip_fraction_j = ((ratio < 1.0 - clip_range) |
                                    (ratio > 1.0 + clip_range)).float().mean()
-                clip_fractions.append(clip_fraction_j)
+                clip_fractions.append(clip_fraction_j.detach().clone())
 
                 # Importance ratio
-                importance_ratios.append(ratio.mean())
+                importance_ratios.append(ratio.detach().clone().mean())
 
                 # Approximate KL (using log prob difference)
-                approx_kl_j = 0.5 * torch.mean((log_prob - old_log_probs_j)**2)
+                approx_kl_j = 0.5 * torch.mean((log_prob.detach().clone() - old_log_probs_j.detach().clone())**2)
                 approx_kls.append(approx_kl_j)
 
             # Explicitly delete intermediate tensors to free memory (only removes local
@@ -1777,21 +1770,14 @@ class RLPipeline(TrainingPipeline):
             if kl_beta > 0:
                 del prev_sample_mean_ref, dt_ref
 
-        # Average metrics across timesteps (stack then mean; backward already done per timestep)
-        policy_loss = torch.stack(policy_losses).mean()
-        kl_loss = torch.stack(kl_losses).mean()
-        if kl_beta == 0:
-            kl_loss = torch.tensor(0.0, device=policy_loss.device)
+        # Average loss across timesteps (backward already done per timestep)
         total_loss = torch.stack(total_losses).mean()
-
-        # Compute metrics
         metrics = {
-            "policy_loss": policy_loss.item(),
-            "kl_loss": kl_loss.item(),
+            "policy_loss": torch.stack(policy_losses).mean().item(),
+            "kl_loss": (torch.tensor(0.0, device=total_loss.device) if kl_beta == 0 else torch.stack(kl_losses).mean()).item(),
             "total_loss": total_loss.item(),
             "clip_fraction": torch.stack(clip_fractions).mean().item(),
-            "importance_ratio_mean":
-            torch.stack(importance_ratios).mean().item(),
+            "importance_ratio_mean": torch.stack(importance_ratios).mean().item(),
             "approx_kl": torch.stack(approx_kls).mean().item(),
         }
 
@@ -1810,9 +1796,12 @@ class RLPipeline(TrainingPipeline):
         kl_loss_t = torch.tensor(metrics.get("kl_loss", 0.0), device=self.device)
         if getattr(self, "world_size", 1) > 1:
             wg = get_world_group()
-            wg.all_reduce(total_loss_t, op=dist.ReduceOp.AVG)
-            wg.all_reduce(policy_loss_t, op=dist.ReduceOp.AVG)
-            wg.all_reduce(kl_loss_t, op=dist.ReduceOp.AVG)
+            total_loss_t = wg.all_reduce(total_loss_t, op=dist.ReduceOp.AVG)
+            policy_loss_t = wg.all_reduce(policy_loss_t, op=dist.ReduceOp.AVG)
+            kl_loss_t = wg.all_reduce(kl_loss_t, op=dist.ReduceOp.AVG)
+            
+        logger.info(f"temporary debug: in _log_grpo_metrics: reward_mean: {getattr(tb, "reward_mean", 0.0)}")
+        logger.info(f"temporary debug: in _log_grpo_metrics: total_loss: {total_loss_t}")
         if getattr(self, "global_rank", 0) == 0:
             self.tracker.log(
                 {
@@ -1821,7 +1810,7 @@ class RLPipeline(TrainingPipeline):
                     "total_loss": total_loss_t.item(),
                     "policy_loss": policy_loss_t.item(),
                     "kl_loss": kl_loss_t.item(),
-                    "importance_ratio": metrics.get("importance_ratio_mean", 1.0),
+                    "importance_ratio": metrics.get("importance_ratio_mean", 0.0),
                     "clip_fraction": metrics.get("clip_fraction", 0.0),
                 },
                 log_step,

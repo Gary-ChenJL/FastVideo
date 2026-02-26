@@ -1,522 +1,682 @@
 === batch 0 (j=0) ===
 sum_initial_latents_fp64: -2833.963320594627
-sum_intermediate_latents_fp64: -92840.24510700475
-sum_model_pred_fp64: 117479.61601477116
-sum_prompt_embeds_fp64: 577.8189651729772
+sum_intermediate_latents_fp64: 1389998.9199967666
+sum_model_pred_fp64: -4125150.5417776126
+sum_prompt_embeds_fp64: -8.296509359497577
 sum_negative_prompt_embeds_fp64: -11.28184723854065
-sum_decoded_fp64: 21150605.536715865
+sum_decoded_fp64: 22931941.230002373
 num_inference_steps: 20
 guidance_scale: 4.5
 height: 240
 width: 416
 num_frames: 33
 batch_size: 8
-step_0 sum_model_pred_fp64: -84270.98498810083
-step_0 sum_intermediate_latents_fp64: -1458.5819365280622
+step_0 sum_model_pred_fp64: -279094.61103501916
+step_0 sum_intermediate_latents_fp64: 1902.0743654416292
 step_0 sum_variance_noise_fp64: -789.683116232052
-step_1 sum_model_pred_fp64: 42055.673360317945
-step_1 sum_intermediate_latents_fp64: -2445.9071630090766
+step_1 sum_model_pred_fp64: -213475.00434269756
+step_1 sum_intermediate_latents_fp64: 5646.45971239161
 step_1 sum_variance_noise_fp64: -1650.2171930825245
-step_2 sum_model_pred_fp64: 24157.504252932966
-step_2 sum_intermediate_latents_fp64: -2793.7943815826657
+step_2 sum_model_pred_fp64: -184164.8534064889
+step_2 sum_intermediate_latents_fp64: 9427.719714498176
 step_2 sum_variance_noise_fp64: 877.1397947799464
-step_3 sum_model_pred_fp64: 20665.39867924899
-step_3 sum_intermediate_latents_fp64: -3119.608367803885
+step_3 sum_model_pred_fp64: -192129.2213821113
+step_3 sum_intermediate_latents_fp64: 13646.743672386743
 step_3 sum_variance_noise_fp64: 736.812491993373
-step_4 sum_model_pred_fp64: 14146.436501018703
-step_4 sum_intermediate_latents_fp64: -3141.3991728220135
+step_4 sum_model_pred_fp64: -190999.2981209308
+step_4 sum_intermediate_latents_fp64: 18350.721968635684
 step_4 sum_variance_noise_fp64: 2061.4611658635285
-step_5 sum_model_pred_fp64: 11182.983104549348
-step_5 sum_intermediate_latents_fp64: -3280.72235352188
+step_5 sum_model_pred_fp64: -198360.25216513313
+step_5 sum_intermediate_latents_fp64: 23445.91745023543
 step_5 sum_variance_noise_fp64: 847.0691408767577
-step_6 sum_model_pred_fp64: 10748.14579294622
-step_6 sum_intermediate_latents_fp64: -3739.915478417657
+step_6 sum_model_pred_fp64: -202850.078239277
+step_6 sum_intermediate_latents_fp64: 28792.479894006858
 step_6 sum_variance_noise_fp64: -1336.0408117195327
-step_7 sum_model_pred_fp64: 8432.547727972269
-step_7 sum_intermediate_latents_fp64: -3961.8262461485283
+step_7 sum_model_pred_fp64: -206138.16465693712
+step_7 sum_intermediate_latents_fp64: 34934.47183205564
 step_7 sum_variance_noise_fp64: -11.548195632876286
-step_8 sum_model_pred_fp64: 7884.056024074554
-step_8 sum_intermediate_latents_fp64: -4285.966152924244
+step_8 sum_model_pred_fp64: -205848.82549402118
+step_8 sum_intermediate_latents_fp64: 41550.74635823781
 step_8 sum_variance_noise_fp64: -694.2449807570148
-step_9 sum_model_pred_fp64: 7024.939287196845
-step_9 sum_intermediate_latents_fp64: -4392.435486208764
+step_9 sum_model_pred_fp64: -205924.14424221218
+step_9 sum_intermediate_latents_fp64: 49048.09518311749
 step_9 sum_variance_noise_fp64: 732.648895439603
-step_10 sum_model_pred_fp64: 6652.140186816454
-step_10 sum_intermediate_latents_fp64: -4326.0551135586575
+step_10 sum_model_pred_fp64: -206030.8325916864
+step_10 sum_intermediate_latents_fp64: 57506.92196408968
 step_10 sum_variance_noise_fp64: 1982.1610815613556
-step_11 sum_model_pred_fp64: 4531.596514686942
-step_11 sum_intermediate_latents_fp64: -4540.670289380738
+step_11 sum_model_pred_fp64: -205666.4696892351
+step_11 sum_intermediate_latents_fp64: 66497.11959118114
 step_11 sum_variance_noise_fp64: -418.5702384404828
-step_12 sum_model_pred_fp64: 4216.93464814499
-step_12 sum_intermediate_latents_fp64: -4520.7821139966545
+step_12 sum_model_pred_fp64: -204631.77123096585
+step_12 sum_intermediate_latents_fp64: 76732.0313161526
 step_12 sum_variance_noise_fp64: 1222.7006414796608
-step_13 sum_model_pred_fp64: 5614.167076732963
-step_13 sum_intermediate_latents_fp64: -5032.703251420433
+step_13 sum_model_pred_fp64: -205271.78089046478
+step_13 sum_intermediate_latents_fp64: 87838.43800401685
 step_13 sum_variance_noise_fp64: -1694.874662188572
-step_14 sum_model_pred_fp64: 7057.520898900926
-step_14 sum_intermediate_latents_fp64: -5410.127362567291
+step_14 sum_model_pred_fp64: -204296.9119690135
+step_14 sum_intermediate_latents_fp64: 100661.2368659685
 step_14 sum_variance_noise_fp64: 221.7823308666558
-step_15 sum_model_pred_fp64: 7243.810145370662
-step_15 sum_intermediate_latents_fp64: -5814.779425290937
+step_15 sum_model_pred_fp64: -203244.57309937105
+step_15 sum_intermediate_latents_fp64: 115272.70080703133
 step_15 sum_variance_noise_fp64: 623.7748358961333
-step_16 sum_model_pred_fp64: 7228.193325608969
-step_16 sum_intermediate_latents_fp64: -6280.346240752275
+step_16 sum_model_pred_fp64: -202434.40252945572
+step_16 sum_intermediate_latents_fp64: 132057.95070540297
 step_16 sum_variance_noise_fp64: 838.3412947085856
-step_17 sum_model_pred_fp64: 7411.556723356247
-step_17 sum_intermediate_latents_fp64: -6718.413909603769
+step_17 sum_model_pred_fp64: -202192.29689759016
+step_17 sum_intermediate_latents_fp64: 151742.15785620292
 step_17 sum_variance_noise_fp64: 2384.4944336419594
-step_18 sum_model_pred_fp64: 6944.94116063416
-step_18 sum_intermediate_latents_fp64: -7511.137274011475
+step_18 sum_model_pred_fp64: -199488.70677918196
+step_18 sum_intermediate_latents_fp64: 174341.20770946474
 step_18 sum_variance_noise_fp64: -299.3766390163852
-step_19 sum_model_pred_fp64: -1447.9444076381624
-step_19 sum_intermediate_latents_fp64: -7231.110066861118
+step_19 sum_model_pred_fp64: -212908.3430158198
+step_19 sum_intermediate_latents_fp64: 203437.68834684318
 step_19 sum_variance_noise_fp64: 86.60947481863707
 === batch 1 (j=0) ===
 sum_initial_latents_fp64: -2833.963320594627
-sum_intermediate_latents_fp64: 569143.4195878839
-sum_model_pred_fp64: -1773346.9621282397
-sum_prompt_embeds_fp64: -14.579123107716441
+sum_intermediate_latents_fp64: 881095.7735906722
+sum_model_pred_fp64: -2655263.338093858
+sum_prompt_embeds_fp64: 403.7386286689434
 sum_negative_prompt_embeds_fp64: -11.28184723854065
-sum_decoded_fp64: 41561056.88430315
+sum_decoded_fp64: 27513110.185762465
 num_inference_steps: 20
 guidance_scale: 4.5
 height: 240
 width: 416
 num_frames: 33
 batch_size: 8
-step_0 sum_model_pred_fp64: -162996.43547783047
-step_0 sum_intermediate_latents_fp64: -100.58864880503097
+step_0 sum_model_pred_fp64: -106317.27580952644
+step_0 sum_intermediate_latents_fp64: -1078.2893243554572
 step_0 sum_variance_noise_fp64: -789.683116232052
-step_1 sum_model_pred_fp64: -79608.23821967095
-step_1 sum_intermediate_latents_fp64: 1167.0810361455951
+step_1 sum_model_pred_fp64: -168602.55648609996
+step_1 sum_intermediate_latents_fp64: 1856.1237229025865
 step_1 sum_variance_noise_fp64: -1650.2171930825245
-step_2 sum_model_pred_fp64: -87006.44740625471
-step_2 sum_intermediate_latents_fp64: 3029.0797400830197
+step_2 sum_model_pred_fp64: -110994.41274166107
+step_2 sum_intermediate_latents_fp64: 4195.828070405725
 step_2 sum_variance_noise_fp64: 877.1397947799464
-step_3 sum_model_pred_fp64: -89508.3742134422
-step_3 sum_intermediate_latents_fp64: 5061.257046964864
+step_3 sum_model_pred_fp64: -129842.5038708672
+step_3 sum_intermediate_latents_fp64: 7100.651850953291
 step_3 sum_variance_noise_fp64: 736.812491993373
-step_4 sum_model_pred_fp64: -85826.69340039045
-step_4 sum_intermediate_latents_fp64: 7342.358350931594
+step_4 sum_model_pred_fp64: -135821.94453421235
+step_4 sum_intermediate_latents_fp64: 10554.486994393053
 step_4 sum_variance_noise_fp64: 2061.4611658635285
-step_5 sum_model_pred_fp64: -86785.8066964671
-step_5 sum_intermediate_latents_fp64: 9645.628740411841
+step_5 sum_model_pred_fp64: -134349.1255077049
+step_5 sum_intermediate_latents_fp64: 14064.006617088104
 step_5 sum_variance_noise_fp64: 847.0691408767577
-step_6 sum_model_pred_fp64: -85082.40228998475
-step_6 sum_intermediate_latents_fp64: 11780.448853542912
+step_6 sum_model_pred_fp64: -134646.17856879532
+step_6 sum_intermediate_latents_fp64: 17566.463197751873
 step_6 sum_variance_noise_fp64: -1336.0408117195327
-step_7 sum_model_pred_fp64: -84032.40224929154
-step_7 sum_intermediate_latents_fp64: 14282.733071285707
+step_7 sum_model_pred_fp64: -134798.25380451232
+step_7 sum_intermediate_latents_fp64: 21597.56916789658
 step_7 sum_variance_noise_fp64: -11.548195632876286
-step_8 sum_model_pred_fp64: -86010.1977369301
-step_8 sum_intermediate_latents_fp64: 16992.73440238484
+step_8 sum_model_pred_fp64: -135078.83952848986
+step_8 sum_intermediate_latents_fp64: 25921.640242924623
 step_8 sum_variance_noise_fp64: -694.2449807570148
-step_9 sum_model_pred_fp64: -86217.94203823805
-step_9 sum_intermediate_latents_fp64: 20199.351848218837
+step_9 sum_model_pred_fp64: -134510.19390697405
+step_9 sum_intermediate_latents_fp64: 30872.480683740287
 step_9 sum_variance_noise_fp64: 732.648895439603
-step_10 sum_model_pred_fp64: -85605.2507218346
-step_10 sum_intermediate_latents_fp64: 23886.059067321126
+step_10 sum_model_pred_fp64: -134349.067566216
+step_10 sum_intermediate_latents_fp64: 36505.09813705251
 step_10 sum_variance_noise_fp64: 1982.1610815613556
-step_11 sum_model_pred_fp64: -85738.18332923204
-step_11 sum_intermediate_latents_fp64: 27599.54340340034
+step_11 sum_model_pred_fp64: -134609.38325500488
+step_11 sum_intermediate_latents_fp64: 42385.11731420859
 step_11 sum_variance_noise_fp64: -418.5702384404828
-step_12 sum_model_pred_fp64: -85142.03843668941
-step_12 sum_intermediate_latents_fp64: 31962.568294264987
+step_12 sum_model_pred_fp64: -134189.3432775177
+step_12 sum_intermediate_latents_fp64: 49177.00213661246
 step_12 sum_variance_noise_fp64: 1222.7006414796608
-step_13 sum_model_pred_fp64: -84889.1684047021
-step_13 sum_intermediate_latents_fp64: 36410.24939669932
+step_13 sum_model_pred_fp64: -134628.37632863596
+step_13 sum_intermediate_latents_fp64: 56396.98467427973
 step_13 sum_variance_noise_fp64: -1694.874662188572
-step_14 sum_model_pred_fp64: -84847.6056247577
-step_14 sum_intermediate_latents_fp64: 41754.846081653435
+step_14 sum_model_pred_fp64: -133680.62180084735
+step_14 sum_intermediate_latents_fp64: 64816.39889544944
 step_14 sum_variance_noise_fp64: 221.7823308666558
-step_15 sum_model_pred_fp64: -83319.59609238245
-step_15 sum_intermediate_latents_fp64: 47784.63707407701
+step_15 sum_model_pred_fp64: -132049.10683778673
+step_15 sum_intermediate_latents_fp64: 74348.25807225227
 step_15 sum_variance_noise_fp64: 623.7748358961333
-step_16 sum_model_pred_fp64: -83280.66278684884
-step_16 sum_intermediate_latents_fp64: 54743.44437880367
+step_16 sum_model_pred_fp64: -131900.7765089944
+step_16 sum_intermediate_latents_fp64: 85333.29026857107
 step_16 sum_variance_noise_fp64: 838.3412947085856
-step_17 sum_model_pred_fp64: -82688.57065081783
-step_17 sum_intermediate_latents_fp64: 62930.13274410115
+step_17 sum_model_pred_fp64: -131214.02208311483
+step_17 sum_intermediate_latents_fp64: 98201.54032080132
 step_17 sum_variance_noise_fp64: 2384.4944336419594
-step_18 sum_model_pred_fp64: -80420.3583362922
-step_18 sum_intermediate_latents_fp64: 72001.7024921567
+step_18 sum_model_pred_fp64: -130163.25983253121
+step_18 sum_intermediate_latents_fp64: 112949.52106524608
 step_18 sum_variance_noise_fp64: -299.3766390163852
-step_19 sum_model_pred_fp64: -84340.58801618218
-step_19 sum_intermediate_latents_fp64: 83504.11553483664
+step_19 sum_model_pred_fp64: -133518.09584436566
+step_19 sum_intermediate_latents_fp64: 131165.5648030926
 step_19 sum_variance_noise_fp64: 86.60947481863707
 
 === reward, advantage, prompt (one per line, same order as prompts.txt) ===
-0.0, 0.0, A wizard's enchanted broomstick, with a custom license plate reading "HOCUS3", hovers above a misty forest at twilight, casting a soft glow around its intricate wooden frame and shimmering magical runes.
-0.1190476194024086, 0.603946364664281, A vibrant tech expo billboard stands tall in a bustling city square, prominently displaying the slogan "Innovate Tomorrow Today" in bold, futuristic fonts, surrounded by glowing lights and futuristic technology icons.
-0.0714285746216774, -1.6260097653919992, A vibrant tech expo billboard stands tall in a bustling city square, prominently displaying the slogan "Innovate Tomorrow Today" in bold, futuristic fonts, surrounded by glowing lights and futuristic technology icons.
-0.1388888955116272, -0.5548821402095327, An ambulance parked on a city street, its side door stenciled with "Emergency Medical Services", reflecting the urgency and professionalism of the scene. The vehicle is illuminated by the soft glow of streetlights, with a faint blue hue from the ambulance's lights.
-0.24537037312984467, 1.65743271824948, An ambulance parked on a city street, its side door stenciled with "Emergency Medical Services", reflecting the urgency and professionalism of the scene. The vehicle is illuminated by the soft glow of streetlights, with a faint blue hue from the ambulance's lights.
-0.30263158679008484, 0.3712390265834734, A glossy, floating magic 8-ball in a cozy café, with steam rising from a nearby cup of coffee. The 8-ball displays the answer "Ask Again After Coffee" in glowing, mystical text, surrounded by a soft, ambient light.
-0.1071428582072258, 0.046457332150210966, A vibrant tech expo billboard stands tall in a bustling city square, prominently displaying the slogan "Innovate Tomorrow Today" in bold, futuristic fonts, surrounded by glowing lights and futuristic technology icons.
-0.0, -1.7074869906615116, A professional conference room setting with a large screen displaying a corporate training slide titled "Ethics Optional Module", surrounded by a modern, minimalistic office environment with subtle corporate branding.
-0.26530611515045166, 1.1934053681012047, A neon sign in a rainy urban night scene above a bustling bar, flashing "Open 247" with vibrant colors reflecting off wet pavements and windows.
-0.20624999701976776, 0.5059910425072676, A professional conference room setting with a large screen displaying a corporate training slide titled "Ethics Optional Module", surrounded by a modern, minimalistic office environment with subtle corporate branding.
-0.0, 0.0, A wizard's enchanted broomstick, with a custom license plate reading "HOCUS3", hovers above a misty forest at twilight, casting a soft glow around its intricate wooden frame and shimmering magical runes.
-0.23571428656578064, 0.8222022357940884, A professional conference room setting with a large screen displaying a corporate training slide titled "Ethics Optional Module", surrounded by a modern, minimalistic office environment with subtle corporate branding.
-0.0, 0.0, A wizard's enchanted broomstick, with a custom license plate reading "HOCUS3", hovers above a misty forest at twilight, casting a soft glow around its intricate wooden frame and shimmering magical runes.
-0.24242424964904785, 1.5076562436136292, A movie poster titled "Invasion of the Giant Ants", featuring towering ants with intricate exoskeletons marching through a devastated cityscape, towering over crumbling buildings and panicked citizens. The sky is dark, with a red tint, adding to the ominous atmosphere.
-0.09375, 0.4585168491696119, A bustling city street at night, with a neon bar sign glowing brightly, displaying "Live Music Tonight" in vibrant colors, casting a soft, colorful glow on the pavement and passersby.
-0.16161616146564484, 0.017463181696280833, A movie poster titled "Invasion of the Giant Ants", featuring towering ants with intricate exoskeletons marching through a devastated cityscape, towering over crumbling buildings and panicked citizens. The sky is dark, with a red tint, adding to the ominous atmosphere.
-0.15833333134651184, -0.1508943737540028, An ambulance parked on a city street, its side door stenciled with "Emergency Medical Services", reflecting the urgency and professionalism of the scene. The vehicle is illuminated by the soft glow of streetlights, with a faint blue hue from the ambulance's lights.
-0.1944444477558136, 0.3792937123601555, A professional conference room setting with a large screen displaying a corporate training slide titled "Ethics Optional Module", surrounded by a modern, minimalistic office environment with subtle corporate branding.
-0.0, -1.721600872218969, A bustling city street at night, with a neon bar sign glowing brightly, displaying "Live Music Tonight" in vibrant colors, casting a soft, colorful glow on the pavement and passersby.
-0.32163742184638977, 0.800225942584266, A glossy, floating magic 8-ball in a cozy café, with steam rising from a nearby cup of coffee. The 8-ball displays the answer "Ask Again After Coffee" in glowing, mystical text, surrounded by a soft, ambient light.
-0.0, 0.0, A wizard's enchanted broomstick, with a custom license plate reading "HOCUS3", hovers above a misty forest at twilight, casting a soft glow around its intricate wooden frame and shimmering magical runes.
-0.1197916641831398, -0.9516562042859444, An ambulance parked on a city street, its side door stenciled with "Emergency Medical Services", reflecting the urgency and professionalism of the scene. The vehicle is illuminated by the soft glow of streetlights, with a faint blue hue from the ambulance's lights.
-0.0982142835855484, 0.562331929256633, A bustling city street at night, with a neon bar sign glowing brightly, displaying "Live Music Tonight" in vibrant colors, casting a soft, colorful glow on the pavement and passersby.
-0.09090909361839294, -1.2864555757349228, A movie poster titled "Invasion of the Giant Ants", featuring towering ants with intricate exoskeletons marching through a devastated cityscape, towering over crumbling buildings and panicked citizens. The sky is dark, with a red tint, adding to the ominous atmosphere.
-0.30994153022766113, 0.5362341495094616, A glossy, floating magic 8-ball in a cozy café, with steam rising from a nearby cup of coffee. The 8-ball displays the answer "Ask Again After Coffee" in glowing, mystical text, surrounded by a soft, ambient light.
-0.1041666641831398, 0.7007520937927243, A bustling city street at night, with a neon bar sign glowing brightly, displaying "Live Music Tonight" in vibrant colors, casting a soft, colorful glow on the pavement and passersby.
-0.0, -1.5444070600219597, A neon sign in a rainy urban night scene above a bustling bar, flashing "Open 247" with vibrant colors reflecting off wet pavements and windows.
-0.14772726595401764, -0.2386638495749872, A movie poster titled "Invasion of the Giant Ants", featuring towering ants with intricate exoskeletons marching through a devastated cityscape, towering over crumbling buildings and panicked citizens. The sky is dark, with a red tint, adding to the ominous atmosphere.
-0.190476194024086, 0.4212019534190336, A neon sign in a rainy urban night scene above a bustling bar, flashing "Open 247" with vibrant colors reflecting off wet pavements and windows.
-0.21052631735801697, -1.707699118677201, A glossy, floating magic 8-ball in a cozy café, with steam rising from a nearby cup of coffee. The 8-ball displays the answer "Ask Again After Coffee" in glowing, mystical text, surrounded by a soft, ambient light.
-0.1269841343164444, 0.9756060685775072, A vibrant tech expo billboard stands tall in a bustling city square, prominently displaying the slogan "Innovate Tomorrow Today" in bold, futuristic fonts, surrounded by glowing lights and futuristic technology icons.
-0.1428571492433548, -0.07020026149827847, A neon sign in a rainy urban night scene above a bustling bar, flashing "Open 247" with vibrant colors reflecting off wet pavements and windows.
-0.07407407462596893, -1.6078060495497508, A charming lemonade stand with a handmade sign that reads, "50 Cup Made by CEO Age 8", set against a sunny suburban backdrop. The stand is decorated with colorful drawings and a small, enthusiastic child stands behind it, proudly displaying their creation.
-0.2370370328426361, 1.3318081674313407, A cozy bakery interior with a chalkboard menu hanging on a rustic wooden wall, prominently displaying "Fresh Croissants" in elegant, cursive handwriting. Soft, warm lighting enhances the inviting atmosphere.
-0.11728394776582718, -0.05544175405591884, A charming lemonade stand with a handmade sign that reads, "50 Cup Made by CEO Age 8", set against a sunny suburban backdrop. The stand is decorated with colorful drawings and a small, enthusiastic child stands behind it, proudly displaying their creation.
-0.1041666641831398, 1.7282193020212426, A medieval shield, intricately designed with a bold emblem that proudly displays "Loyalty Honor" in elegant, gothic script, set against a backdrop of a grand, ancient castle courtyard. The shield is weathered, showing signs of battles past, yet the emblem remains vivid and unblemished.
-0.06666667014360428, 0.3009668750431541, A lighthouse stands on a rocky cliff, its powerful beacon cutting through the dense fog to project the words "Safe Harbor Ahead" onto the misty air, guiding ships to safety.
-0.0, -1.660555869250633, A detailed amusement park map with a legend prominently featuring "Rollercoaster Zone", surrounded by colorful icons and pathways, set against a vibrant, sunny sky.
-0.11666666716337204, -1.1240084322640174, A cozy bakery interior with a chalkboard menu hanging on a rustic wooden wall, prominently displaying "Fresh Croissants" in elegant, cursive handwriting. Soft, warm lighting enhances the inviting atmosphere.
-0.1419753134250641, 0.8316239018028349, A charming lemonade stand with a handmade sign that reads, "50 Cup Made by CEO Age 8", set against a sunny suburban backdrop. The stand is decorated with colorful drawings and a small, enthusiastic child stands behind it, proudly displaying their creation.
-0.10000000149011612, 1.7280600239483348, A museum exhibit featuring an elaborate plaque titled "Ancient Civilizations", surrounded by artifacts from various cultures, including pottery, tools, and statuettes, under warm, ambient lighting that highlights the historical significance of each piece.
-0.20000000298023224, 0.5761724075312368, A cozy bakery interior with a chalkboard menu hanging on a rustic wooden wall, prominently displaying "Fresh Croissants" in elegant, cursive handwriting. Soft, warm lighting enhances the inviting atmosphere.
-0.37037035822868347, 1.476682285617786, In a modern office building, an elevator panel features a red emergency button cover with bold, black text that reads "Break Glass for Pizza". The sleek, silver elevator interior contrasts with the playful, out-of-place sign, inviting a curious glance.
-0.0, -0.9179376578365851, In a modern office building, an elevator panel features a red emergency button cover with bold, black text that reads "Break Glass for Pizza". The sleek, silver elevator interior contrasts with the playful, out-of-place sign, inviting a curious glance.
-0.0, -0.9179376578365851, In a modern office building, an elevator panel features a red emergency button cover with bold, black text that reads "Break Glass for Pizza". The sleek, silver elevator interior contrasts with the playful, out-of-place sign, inviting a curious glance.
-0.13333334028720856, -0.7839721426985602, A cozy bakery interior with a chalkboard menu hanging on a rustic wooden wall, prominently displaying "Fresh Croissants" in elegant, cursive handwriting. Soft, warm lighting enhances the inviting atmosphere.
-0.1975308656692505, 0.3591930300553841, In a modern office building, an elevator panel features a red emergency button cover with bold, black text that reads "Break Glass for Pizza". The sleek, silver elevator interior contrasts with the playful, out-of-place sign, inviting a curious glance.
-0.0, 0.0, A stone monument stands tall, its surface intricately carved with ancient glyphs that wind down to the inscription "" at the base, set against a backdrop of a serene, misty forest.
-0.0, -0.5760200079827783, A museum exhibit featuring an elaborate plaque titled "Ancient Civilizations", surrounded by artifacts from various cultures, including pottery, tools, and statuettes, under warm, ambient lighting that highlights the historical significance of each piece.
-0.27450981736183167, 0.8871463507240073, A detailed amusement park map with a legend prominently featuring "Rollercoaster Zone", surrounded by colorful icons and pathways, set against a vibrant, sunny sky.
-0.0, 0.0, A stone monument stands tall, its surface intricately carved with ancient glyphs that wind down to the inscription "" at the base, set against a backdrop of a serene, misty forest.
-0.0, -0.9029006251294623, A lighthouse stands on a rocky cliff, its powerful beacon cutting through the dense fog to project the words "Safe Harbor Ahead" onto the misty air, guiding ships to safety.
-0.19117647409439087, 0.11373669390097439, A detailed amusement park map with a legend prominently featuring "Rollercoaster Zone", surrounded by colorful icons and pathways, set against a vibrant, sunny sky.
-0.25, 0.6596728246256515, A detailed amusement park map with a legend prominently featuring "Rollercoaster Zone", surrounded by colorful icons and pathways, set against a vibrant, sunny sky.
-0.0, -0.5760200079827783, A museum exhibit featuring an elaborate plaque titled "Ancient Civilizations", surrounded by artifacts from various cultures, including pottery, tools, and statuettes, under warm, ambient lighting that highlights the historical significance of each piece.
-0.0, -0.5760731006737475, A medieval shield, intricately designed with a bold emblem that proudly displays "Loyalty Honor" in elegant, gothic script, set against a backdrop of a grand, ancient castle courtyard. The shield is weathered, showing signs of battles past, yet the emblem remains vivid and unblemished.
-0.0, -0.5760731006737475, A medieval shield, intricately designed with a bold emblem that proudly displays "Loyalty Honor" in elegant, gothic script, set against a backdrop of a grand, ancient castle courtyard. The shield is weathered, showing signs of battles past, yet the emblem remains vivid and unblemished.
-0.0, -0.5760731006737475, A medieval shield, intricately designed with a bold emblem that proudly displays "Loyalty Honor" in elegant, gothic script, set against a backdrop of a grand, ancient castle courtyard. The shield is weathered, showing signs of battles past, yet the emblem remains vivid and unblemished.
-0.1419753134250641, 0.8316239018028349, A charming lemonade stand with a handmade sign that reads, "50 Cup Made by CEO Age 8", set against a sunny suburban backdrop. The stand is decorated with colorful drawings and a small, enthusiastic child stands behind it, proudly displaying their creation.
-0.0, 0.0, A stone monument stands tall, its surface intricately carved with ancient glyphs that wind down to the inscription "" at the base, set against a backdrop of a serene, misty forest.
-0.0, 0.0, A stone monument stands tall, its surface intricately carved with ancient glyphs that wind down to the inscription "" at the base, set against a backdrop of a serene, misty forest.
-0.0, -0.5760200079827783, A museum exhibit featuring an elaborate plaque titled "Ancient Civilizations", surrounded by artifacts from various cultures, including pottery, tools, and statuettes, under warm, ambient lighting that highlights the historical significance of each piece.
-0.0, -0.9029006251294623, A lighthouse stands on a rocky cliff, its powerful beacon cutting through the dense fog to project the words "Safe Harbor Ahead" onto the misty air, guiding ships to safety.
-0.13333334028720856, 1.5048343752157707, A lighthouse stands on a rocky cliff, its powerful beacon cutting through the dense fog to project the words "Safe Harbor Ahead" onto the misty air, guiding ships to safety.
-=== batch 0 (j=0) ===
-sum_initial_latents_fp64: -2833.963320594627
-sum_intermediate_latents_fp64: -92840.24510700475
-sum_model_pred_fp64: 117479.61601477116
-sum_prompt_embeds_fp64: 577.8189651729772
-sum_negative_prompt_embeds_fp64: -11.28184723854065
-sum_decoded_fp64: 21150605.536715865
-num_inference_steps: 20
-guidance_scale: 4.5
-height: 240
-width: 416
-num_frames: 33
-batch_size: 8
-step_0 sum_model_pred_fp64: -84270.98498810083
-step_0 sum_intermediate_latents_fp64: -1458.5819365280622
-step_0 sum_variance_noise_fp64: -789.683116232052
-step_1 sum_model_pred_fp64: 42055.673360317945
-step_1 sum_intermediate_latents_fp64: -2445.9071630090766
-step_1 sum_variance_noise_fp64: -1650.2171930825245
-step_2 sum_model_pred_fp64: 24157.504252932966
-step_2 sum_intermediate_latents_fp64: -2793.7943815826657
-step_2 sum_variance_noise_fp64: 877.1397947799464
-step_3 sum_model_pred_fp64: 20665.39867924899
-step_3 sum_intermediate_latents_fp64: -3119.608367803885
-step_3 sum_variance_noise_fp64: 736.812491993373
-step_4 sum_model_pred_fp64: 14146.436501018703
-step_4 sum_intermediate_latents_fp64: -3141.3991728220135
-step_4 sum_variance_noise_fp64: 2061.4611658635285
-step_5 sum_model_pred_fp64: 11182.983104549348
-step_5 sum_intermediate_latents_fp64: -3280.72235352188
-step_5 sum_variance_noise_fp64: 847.0691408767577
-step_6 sum_model_pred_fp64: 10748.14579294622
-step_6 sum_intermediate_latents_fp64: -3739.915478417657
-step_6 sum_variance_noise_fp64: -1336.0408117195327
-step_7 sum_model_pred_fp64: 8432.547727972269
-step_7 sum_intermediate_latents_fp64: -3961.8262461485283
-step_7 sum_variance_noise_fp64: -11.548195632876286
-step_8 sum_model_pred_fp64: 7884.056024074554
-step_8 sum_intermediate_latents_fp64: -4285.966152924244
-step_8 sum_variance_noise_fp64: -694.2449807570148
-step_9 sum_model_pred_fp64: 7024.939287196845
-step_9 sum_intermediate_latents_fp64: -4392.435486208764
-step_9 sum_variance_noise_fp64: 732.648895439603
-step_10 sum_model_pred_fp64: 6652.140186816454
-step_10 sum_intermediate_latents_fp64: -4326.0551135586575
-step_10 sum_variance_noise_fp64: 1982.1610815613556
-step_11 sum_model_pred_fp64: 4531.596514686942
-step_11 sum_intermediate_latents_fp64: -4540.670289380738
-step_11 sum_variance_noise_fp64: -418.5702384404828
-step_12 sum_model_pred_fp64: 4216.93464814499
-step_12 sum_intermediate_latents_fp64: -4520.7821139966545
-step_12 sum_variance_noise_fp64: 1222.7006414796608
-step_13 sum_model_pred_fp64: 5614.167076732963
-step_13 sum_intermediate_latents_fp64: -5032.703251420433
-step_13 sum_variance_noise_fp64: -1694.874662188572
-step_14 sum_model_pred_fp64: 7057.520898900926
-step_14 sum_intermediate_latents_fp64: -5410.127362567291
-step_14 sum_variance_noise_fp64: 221.7823308666558
-step_15 sum_model_pred_fp64: 7243.810145370662
-step_15 sum_intermediate_latents_fp64: -5814.779425290937
-step_15 sum_variance_noise_fp64: 623.7748358961333
-step_16 sum_model_pred_fp64: 7228.193325608969
-step_16 sum_intermediate_latents_fp64: -6280.346240752275
-step_16 sum_variance_noise_fp64: 838.3412947085856
-step_17 sum_model_pred_fp64: 7411.556723356247
-step_17 sum_intermediate_latents_fp64: -6718.413909603769
-step_17 sum_variance_noise_fp64: 2384.4944336419594
-step_18 sum_model_pred_fp64: 6944.94116063416
-step_18 sum_intermediate_latents_fp64: -7511.137274011475
-step_18 sum_variance_noise_fp64: -299.3766390163852
-step_19 sum_model_pred_fp64: -1447.9444076381624
-step_19 sum_intermediate_latents_fp64: -7231.110066861118
-step_19 sum_variance_noise_fp64: 86.60947481863707
-=== batch 1 (j=0) ===
-sum_initial_latents_fp64: -2833.963320594627
-sum_intermediate_latents_fp64: 569143.4195878839
-sum_model_pred_fp64: -1773346.9621282397
-sum_prompt_embeds_fp64: -14.579123107716441
-sum_negative_prompt_embeds_fp64: -11.28184723854065
-sum_decoded_fp64: 41561056.88430315
-num_inference_steps: 20
-guidance_scale: 4.5
-height: 240
-width: 416
-num_frames: 33
-batch_size: 8
-step_0 sum_model_pred_fp64: -162996.43547783047
-step_0 sum_intermediate_latents_fp64: -100.58864880503097
-step_0 sum_variance_noise_fp64: -789.683116232052
-step_1 sum_model_pred_fp64: -79608.23821967095
-step_1 sum_intermediate_latents_fp64: 1167.0810361455951
-step_1 sum_variance_noise_fp64: -1650.2171930825245
-step_2 sum_model_pred_fp64: -87006.44740625471
-step_2 sum_intermediate_latents_fp64: 3029.0797400830197
-step_2 sum_variance_noise_fp64: 877.1397947799464
-step_3 sum_model_pred_fp64: -89508.3742134422
-step_3 sum_intermediate_latents_fp64: 5061.257046964864
-step_3 sum_variance_noise_fp64: 736.812491993373
-step_4 sum_model_pred_fp64: -85826.69340039045
-step_4 sum_intermediate_latents_fp64: 7342.358350931594
-step_4 sum_variance_noise_fp64: 2061.4611658635285
-step_5 sum_model_pred_fp64: -86785.8066964671
-step_5 sum_intermediate_latents_fp64: 9645.628740411841
-step_5 sum_variance_noise_fp64: 847.0691408767577
-step_6 sum_model_pred_fp64: -85082.40228998475
-step_6 sum_intermediate_latents_fp64: 11780.448853542912
-step_6 sum_variance_noise_fp64: -1336.0408117195327
-step_7 sum_model_pred_fp64: -84032.40224929154
-step_7 sum_intermediate_latents_fp64: 14282.733071285707
-step_7 sum_variance_noise_fp64: -11.548195632876286
-step_8 sum_model_pred_fp64: -86010.1977369301
-step_8 sum_intermediate_latents_fp64: 16992.73440238484
-step_8 sum_variance_noise_fp64: -694.2449807570148
-step_9 sum_model_pred_fp64: -86217.94203823805
-step_9 sum_intermediate_latents_fp64: 20199.351848218837
-step_9 sum_variance_noise_fp64: 732.648895439603
-step_10 sum_model_pred_fp64: -85605.2507218346
-step_10 sum_intermediate_latents_fp64: 23886.059067321126
-step_10 sum_variance_noise_fp64: 1982.1610815613556
-step_11 sum_model_pred_fp64: -85738.18332923204
-step_11 sum_intermediate_latents_fp64: 27599.54340340034
-step_11 sum_variance_noise_fp64: -418.5702384404828
-step_12 sum_model_pred_fp64: -85142.03843668941
-step_12 sum_intermediate_latents_fp64: 31962.568294264987
-step_12 sum_variance_noise_fp64: 1222.7006414796608
-step_13 sum_model_pred_fp64: -84889.1684047021
-step_13 sum_intermediate_latents_fp64: 36410.24939669932
-step_13 sum_variance_noise_fp64: -1694.874662188572
-step_14 sum_model_pred_fp64: -84847.6056247577
-step_14 sum_intermediate_latents_fp64: 41754.846081653435
-step_14 sum_variance_noise_fp64: 221.7823308666558
-step_15 sum_model_pred_fp64: -83319.59609238245
-step_15 sum_intermediate_latents_fp64: 47784.63707407701
-step_15 sum_variance_noise_fp64: 623.7748358961333
-step_16 sum_model_pred_fp64: -83280.66278684884
-step_16 sum_intermediate_latents_fp64: 54743.44437880367
-step_16 sum_variance_noise_fp64: 838.3412947085856
-step_17 sum_model_pred_fp64: -82688.57065081783
-step_17 sum_intermediate_latents_fp64: 62930.13274410115
-step_17 sum_variance_noise_fp64: 2384.4944336419594
-step_18 sum_model_pred_fp64: -80420.3583362922
-step_18 sum_intermediate_latents_fp64: 72001.7024921567
-step_18 sum_variance_noise_fp64: -299.3766390163852
-step_19 sum_model_pred_fp64: -84340.58801618218
-step_19 sum_intermediate_latents_fp64: 83504.11553483664
-step_19 sum_variance_noise_fp64: 86.60947481863707
-
-=== reward, advantage, prompt (one per line, same order as prompts.txt) ===
-0.0, 0.0, A wizard's enchanted broomstick, with a custom license plate reading "HOCUS3", hovers above a misty forest at twilight, casting a soft glow around its intricate wooden frame and shimmering magical runes.
-0.1190476194024086, 0.603946364664281, A vibrant tech expo billboard stands tall in a bustling city square, prominently displaying the slogan "Innovate Tomorrow Today" in bold, futuristic fonts, surrounded by glowing lights and futuristic technology icons.
-0.0714285746216774, -1.6260097653919992, A vibrant tech expo billboard stands tall in a bustling city square, prominently displaying the slogan "Innovate Tomorrow Today" in bold, futuristic fonts, surrounded by glowing lights and futuristic technology icons.
-0.1388888955116272, -0.5548821402095327, An ambulance parked on a city street, its side door stenciled with "Emergency Medical Services", reflecting the urgency and professionalism of the scene. The vehicle is illuminated by the soft glow of streetlights, with a faint blue hue from the ambulance's lights.
-0.24537037312984467, 1.65743271824948, An ambulance parked on a city street, its side door stenciled with "Emergency Medical Services", reflecting the urgency and professionalism of the scene. The vehicle is illuminated by the soft glow of streetlights, with a faint blue hue from the ambulance's lights.
-0.30263158679008484, 0.3712390265834734, A glossy, floating magic 8-ball in a cozy café, with steam rising from a nearby cup of coffee. The 8-ball displays the answer "Ask Again After Coffee" in glowing, mystical text, surrounded by a soft, ambient light.
-0.1071428582072258, 0.046457332150210966, A vibrant tech expo billboard stands tall in a bustling city square, prominently displaying the slogan "Innovate Tomorrow Today" in bold, futuristic fonts, surrounded by glowing lights and futuristic technology icons.
-0.0, -1.7074869906615116, A professional conference room setting with a large screen displaying a corporate training slide titled "Ethics Optional Module", surrounded by a modern, minimalistic office environment with subtle corporate branding.
-0.26530611515045166, 1.1934053681012047, A neon sign in a rainy urban night scene above a bustling bar, flashing "Open 247" with vibrant colors reflecting off wet pavements and windows.
-0.20624999701976776, 0.5059910425072676, A professional conference room setting with a large screen displaying a corporate training slide titled "Ethics Optional Module", surrounded by a modern, minimalistic office environment with subtle corporate branding.
-0.0, 0.0, A wizard's enchanted broomstick, with a custom license plate reading "HOCUS3", hovers above a misty forest at twilight, casting a soft glow around its intricate wooden frame and shimmering magical runes.
-0.23571428656578064, 0.8222022357940884, A professional conference room setting with a large screen displaying a corporate training slide titled "Ethics Optional Module", surrounded by a modern, minimalistic office environment with subtle corporate branding.
-0.0, 0.0, A wizard's enchanted broomstick, with a custom license plate reading "HOCUS3", hovers above a misty forest at twilight, casting a soft glow around its intricate wooden frame and shimmering magical runes.
-0.24242424964904785, 1.5076562436136292, A movie poster titled "Invasion of the Giant Ants", featuring towering ants with intricate exoskeletons marching through a devastated cityscape, towering over crumbling buildings and panicked citizens. The sky is dark, with a red tint, adding to the ominous atmosphere.
-0.09375, 0.4585168491696119, A bustling city street at night, with a neon bar sign glowing brightly, displaying "Live Music Tonight" in vibrant colors, casting a soft, colorful glow on the pavement and passersby.
-0.16161616146564484, 0.017463181696280833, A movie poster titled "Invasion of the Giant Ants", featuring towering ants with intricate exoskeletons marching through a devastated cityscape, towering over crumbling buildings and panicked citizens. The sky is dark, with a red tint, adding to the ominous atmosphere.
-0.15833333134651184, -0.1508943737540028, An ambulance parked on a city street, its side door stenciled with "Emergency Medical Services", reflecting the urgency and professionalism of the scene. The vehicle is illuminated by the soft glow of streetlights, with a faint blue hue from the ambulance's lights.
-0.1944444477558136, 0.3792937123601555, A professional conference room setting with a large screen displaying a corporate training slide titled "Ethics Optional Module", surrounded by a modern, minimalistic office environment with subtle corporate branding.
-0.0, -1.721600872218969, A bustling city street at night, with a neon bar sign glowing brightly, displaying "Live Music Tonight" in vibrant colors, casting a soft, colorful glow on the pavement and passersby.
-0.32163742184638977, 0.800225942584266, A glossy, floating magic 8-ball in a cozy café, with steam rising from a nearby cup of coffee. The 8-ball displays the answer "Ask Again After Coffee" in glowing, mystical text, surrounded by a soft, ambient light.
-0.0, 0.0, A wizard's enchanted broomstick, with a custom license plate reading "HOCUS3", hovers above a misty forest at twilight, casting a soft glow around its intricate wooden frame and shimmering magical runes.
-0.1197916641831398, -0.9516562042859444, An ambulance parked on a city street, its side door stenciled with "Emergency Medical Services", reflecting the urgency and professionalism of the scene. The vehicle is illuminated by the soft glow of streetlights, with a faint blue hue from the ambulance's lights.
-0.0982142835855484, 0.562331929256633, A bustling city street at night, with a neon bar sign glowing brightly, displaying "Live Music Tonight" in vibrant colors, casting a soft, colorful glow on the pavement and passersby.
-0.09090909361839294, -1.2864555757349228, A movie poster titled "Invasion of the Giant Ants", featuring towering ants with intricate exoskeletons marching through a devastated cityscape, towering over crumbling buildings and panicked citizens. The sky is dark, with a red tint, adding to the ominous atmosphere.
-0.30994153022766113, 0.5362341495094616, A glossy, floating magic 8-ball in a cozy café, with steam rising from a nearby cup of coffee. The 8-ball displays the answer "Ask Again After Coffee" in glowing, mystical text, surrounded by a soft, ambient light.
-0.1041666641831398, 0.7007520937927243, A bustling city street at night, with a neon bar sign glowing brightly, displaying "Live Music Tonight" in vibrant colors, casting a soft, colorful glow on the pavement and passersby.
-0.0, -1.5444070600219597, A neon sign in a rainy urban night scene above a bustling bar, flashing "Open 247" with vibrant colors reflecting off wet pavements and windows.
-0.14772726595401764, -0.2386638495749872, A movie poster titled "Invasion of the Giant Ants", featuring towering ants with intricate exoskeletons marching through a devastated cityscape, towering over crumbling buildings and panicked citizens. The sky is dark, with a red tint, adding to the ominous atmosphere.
-0.190476194024086, 0.4212019534190336, A neon sign in a rainy urban night scene above a bustling bar, flashing "Open 247" with vibrant colors reflecting off wet pavements and windows.
-0.21052631735801697, -1.707699118677201, A glossy, floating magic 8-ball in a cozy café, with steam rising from a nearby cup of coffee. The 8-ball displays the answer "Ask Again After Coffee" in glowing, mystical text, surrounded by a soft, ambient light.
-0.1269841343164444, 0.9756060685775072, A vibrant tech expo billboard stands tall in a bustling city square, prominently displaying the slogan "Innovate Tomorrow Today" in bold, futuristic fonts, surrounded by glowing lights and futuristic technology icons.
-0.1428571492433548, -0.07020026149827847, A neon sign in a rainy urban night scene above a bustling bar, flashing "Open 247" with vibrant colors reflecting off wet pavements and windows.
-0.07407407462596893, -1.6078060495497508, A charming lemonade stand with a handmade sign that reads, "50 Cup Made by CEO Age 8", set against a sunny suburban backdrop. The stand is decorated with colorful drawings and a small, enthusiastic child stands behind it, proudly displaying their creation.
-0.2370370328426361, 1.3318081674313407, A cozy bakery interior with a chalkboard menu hanging on a rustic wooden wall, prominently displaying "Fresh Croissants" in elegant, cursive handwriting. Soft, warm lighting enhances the inviting atmosphere.
-0.11728394776582718, -0.05544175405591884, A charming lemonade stand with a handmade sign that reads, "50 Cup Made by CEO Age 8", set against a sunny suburban backdrop. The stand is decorated with colorful drawings and a small, enthusiastic child stands behind it, proudly displaying their creation.
-0.1041666641831398, 1.7282193020212426, A medieval shield, intricately designed with a bold emblem that proudly displays "Loyalty Honor" in elegant, gothic script, set against a backdrop of a grand, ancient castle courtyard. The shield is weathered, showing signs of battles past, yet the emblem remains vivid and unblemished.
-0.06666667014360428, 0.3009668750431541, A lighthouse stands on a rocky cliff, its powerful beacon cutting through the dense fog to project the words "Safe Harbor Ahead" onto the misty air, guiding ships to safety.
-0.0, -1.660555869250633, A detailed amusement park map with a legend prominently featuring "Rollercoaster Zone", surrounded by colorful icons and pathways, set against a vibrant, sunny sky.
-0.11666666716337204, -1.1240084322640174, A cozy bakery interior with a chalkboard menu hanging on a rustic wooden wall, prominently displaying "Fresh Croissants" in elegant, cursive handwriting. Soft, warm lighting enhances the inviting atmosphere.
-0.1419753134250641, 0.8316239018028349, A charming lemonade stand with a handmade sign that reads, "50 Cup Made by CEO Age 8", set against a sunny suburban backdrop. The stand is decorated with colorful drawings and a small, enthusiastic child stands behind it, proudly displaying their creation.
-0.10000000149011612, 1.7280600239483348, A museum exhibit featuring an elaborate plaque titled "Ancient Civilizations", surrounded by artifacts from various cultures, including pottery, tools, and statuettes, under warm, ambient lighting that highlights the historical significance of each piece.
-0.20000000298023224, 0.5761724075312368, A cozy bakery interior with a chalkboard menu hanging on a rustic wooden wall, prominently displaying "Fresh Croissants" in elegant, cursive handwriting. Soft, warm lighting enhances the inviting atmosphere.
-0.37037035822868347, 1.476682285617786, In a modern office building, an elevator panel features a red emergency button cover with bold, black text that reads "Break Glass for Pizza". The sleek, silver elevator interior contrasts with the playful, out-of-place sign, inviting a curious glance.
-0.0, -0.9179376578365851, In a modern office building, an elevator panel features a red emergency button cover with bold, black text that reads "Break Glass for Pizza". The sleek, silver elevator interior contrasts with the playful, out-of-place sign, inviting a curious glance.
-0.0, -0.9179376578365851, In a modern office building, an elevator panel features a red emergency button cover with bold, black text that reads "Break Glass for Pizza". The sleek, silver elevator interior contrasts with the playful, out-of-place sign, inviting a curious glance.
-0.13333334028720856, -0.7839721426985602, A cozy bakery interior with a chalkboard menu hanging on a rustic wooden wall, prominently displaying "Fresh Croissants" in elegant, cursive handwriting. Soft, warm lighting enhances the inviting atmosphere.
-0.1975308656692505, 0.3591930300553841, In a modern office building, an elevator panel features a red emergency button cover with bold, black text that reads "Break Glass for Pizza". The sleek, silver elevator interior contrasts with the playful, out-of-place sign, inviting a curious glance.
-0.0, 0.0, A stone monument stands tall, its surface intricately carved with ancient glyphs that wind down to the inscription "" at the base, set against a backdrop of a serene, misty forest.
-0.0, -0.5760200079827783, A museum exhibit featuring an elaborate plaque titled "Ancient Civilizations", surrounded by artifacts from various cultures, including pottery, tools, and statuettes, under warm, ambient lighting that highlights the historical significance of each piece.
-0.27450981736183167, 0.8871463507240073, A detailed amusement park map with a legend prominently featuring "Rollercoaster Zone", surrounded by colorful icons and pathways, set against a vibrant, sunny sky.
-0.0, 0.0, A stone monument stands tall, its surface intricately carved with ancient glyphs that wind down to the inscription "" at the base, set against a backdrop of a serene, misty forest.
-0.0, -0.9029006251294623, A lighthouse stands on a rocky cliff, its powerful beacon cutting through the dense fog to project the words "Safe Harbor Ahead" onto the misty air, guiding ships to safety.
-0.19117647409439087, 0.11373669390097439, A detailed amusement park map with a legend prominently featuring "Rollercoaster Zone", surrounded by colorful icons and pathways, set against a vibrant, sunny sky.
-0.25, 0.6596728246256515, A detailed amusement park map with a legend prominently featuring "Rollercoaster Zone", surrounded by colorful icons and pathways, set against a vibrant, sunny sky.
-0.0, -0.5760200079827783, A museum exhibit featuring an elaborate plaque titled "Ancient Civilizations", surrounded by artifacts from various cultures, including pottery, tools, and statuettes, under warm, ambient lighting that highlights the historical significance of each piece.
-0.0, -0.5760731006737475, A medieval shield, intricately designed with a bold emblem that proudly displays "Loyalty Honor" in elegant, gothic script, set against a backdrop of a grand, ancient castle courtyard. The shield is weathered, showing signs of battles past, yet the emblem remains vivid and unblemished.
-0.0, -0.5760731006737475, A medieval shield, intricately designed with a bold emblem that proudly displays "Loyalty Honor" in elegant, gothic script, set against a backdrop of a grand, ancient castle courtyard. The shield is weathered, showing signs of battles past, yet the emblem remains vivid and unblemished.
-0.0, -0.5760731006737475, A medieval shield, intricately designed with a bold emblem that proudly displays "Loyalty Honor" in elegant, gothic script, set against a backdrop of a grand, ancient castle courtyard. The shield is weathered, showing signs of battles past, yet the emblem remains vivid and unblemished.
-0.1419753134250641, 0.8316239018028349, A charming lemonade stand with a handmade sign that reads, "50 Cup Made by CEO Age 8", set against a sunny suburban backdrop. The stand is decorated with colorful drawings and a small, enthusiastic child stands behind it, proudly displaying their creation.
-0.0, 0.0, A stone monument stands tall, its surface intricately carved with ancient glyphs that wind down to the inscription "" at the base, set against a backdrop of a serene, misty forest.
-0.0, 0.0, A stone monument stands tall, its surface intricately carved with ancient glyphs that wind down to the inscription "" at the base, set against a backdrop of a serene, misty forest.
-0.0, -0.5760200079827783, A museum exhibit featuring an elaborate plaque titled "Ancient Civilizations", surrounded by artifacts from various cultures, including pottery, tools, and statuettes, under warm, ambient lighting that highlights the historical significance of each piece.
-0.0, -0.9029006251294623, A lighthouse stands on a rocky cliff, its powerful beacon cutting through the dense fog to project the words "Safe Harbor Ahead" onto the misty air, guiding ships to safety.
-0.13333334028720856, 1.5048343752157707, A lighthouse stands on a rocky cliff, its powerful beacon cutting through the dense fog to project the words "Safe Harbor Ahead" onto the misty air, guiding ships to safety.
+0.21568627655506134, 1.1343363147040206, Retro gaming cartridge label with bold, neon colors: "Pong 2 The Reckoning". The label features a vintage 8-bit aesthetic with pixelated graphics of two futuristic paddles and a glowing ball, set against a backdrop of 1980s arcade patterns.
+0.0, -0.8544345240301369, A detailed close-up of a dragon rider's leather jacket, showcasing an intricately embroidered patch that reads "License to Burninate" in bold, fiery letters, surrounded by swirling flames and a majestic dragon in mid-flight.
+0.2777777910232544, 1.5868070012613387, A detailed close-up of a dragon rider's leather jacket, showcasing an intricately embroidered patch that reads "License to Burninate" in bold, fiery letters, surrounded by swirling flames and a majestic dragon in mid-flight.
+0.11764705926179886, -1.147066058725484, A superhero stands on a city rooftop at sunset, his cape emblazoned with the embroidered words "Cape City Protector" billowing in the wind, casting a determined silhouette against the skyline.
+0.0, 0.0, A rugged trail winds through a forest, leading to a wooden hiker’s trail marker that reads "Peak 2 Miles" under a canopy of tall pine trees, with a glimpse of a distant mountain range through the foliage.
+0.0, -0.7267960223488621, A vintage rock band tour bus parked at sunset, with a large, worn banner stretching across its side that boldly proclaims "World's Okayest Musicians", surrounded by a crowd of dedicated fans taking photos.
+0.0, -1.5335014538840825, Retro gaming cartridge label with bold, neon colors: "Pong 2 The Reckoning". The label features a vintage 8-bit aesthetic with pixelated graphics of two futuristic paddles and a glowing ball, set against a backdrop of 1980s arcade patterns.
+0.043478261679410934, -0.24226532002525286, A vintage rock band tour bus parked at sunset, with a large, worn banner stretching across its side that boldly proclaims "World's Okayest Musicians", surrounded by a crowd of dedicated fans taking photos.
+0.2847222089767456, 0.12122570142618007, A futuristic sci-fi setting featuring a large, glowing alien warning symbol on a metallic surface, prominently displaying the text "Humans Prohibited" in bold, futuristic font, with a dark, ominous atmosphere and subtle cybernetic details.
+0.1617647111415863, 0.9888500755021833, A superhero stands on a city rooftop at sunset, his cape emblazoned with the embroidered words "Cape City Protector" billowing in the wind, casting a determined silhouette against the skyline.
+0.3333333432674408, 0.9678580968618284, A close-up photograph of a plant tag in a garden center, clearly displaying the text "Sunflower Tall Variety", with a backdrop of vibrant sunflower plants towering behind it.
+0.26767677068710327, 1.5499850082219544, A young adult wearing a cozy hoodie with "Certified Nap Enthusiast" embroidered on the back, lounging on a plush sofa in a sunlit room, surrounded by fluffy pillows and a book resting on their chest, capturing a moment of serene relaxation.
+0.1133333370089531, 1.5170782681194193, A noir-style illustration of a detective's notebook open to a page with the entry "Suspect Last Seen at Midnight", under a dim streetlamp in a rain-soaked alley, with a shadowy figure in the distance.
+0.0, 0.0, A high-resolution screen in a modern digital museum displays "Exhibit A", featuring an interactive interface with elegant typography and a minimalist design, set against a sleek, black background.
+0.0, -0.7267960223488621, A vintage rock band tour bus parked at sunset, with a large, worn banner stretching across its side that boldly proclaims "World's Okayest Musicians", surrounded by a crowd of dedicated fans taking photos.
+0.16993464529514313, -0.416372039550661, A realistic photograph of a bus stop with a modern schedule sign prominently displaying "Route 66 Next Bus 5 PM" under a clear blue sky, with a few people waiting and a cityscape in the background.
+0.0, 0.0, A high-resolution screen in a modern digital museum displays "Exhibit A", featuring an interactive interface with elegant typography and a minimalist design, set against a sleek, black background.
+0.21739129722118378, 1.695857364722977, A vintage rock band tour bus parked at sunset, with a large, worn banner stretching across its side that boldly proclaims "World's Okayest Musicians", surrounded by a crowd of dedicated fans taking photos.
+0.511904776096344, 1.3261526292678412, A roadside warning sign, shaped as a yellow diamond, prominently displays "Sharp Turn Ahead" in bold black letters, set against a backdrop of winding road and lush greenery, under a clear blue sky.
+0.0, -1.616724352109252, A bustling urban street at dusk, with a large digital billboard cycling through various colorful ads, each transitioning smoothly into the next. The final ad displays a clear message: "Drive Safely", illuminated against a darkening sky. Pedestrians and vehicles are visible, adding life to the scene.
+0.0, -0.8960520588648991, A noir-style illustration of a detective's notebook open to a page with the entry "Suspect Last Seen at Midnight", under a dim streetlamp in a rain-soaked alley, with a shadowy figure in the distance.
+0.22727273404598236, 0.5807650725128992, A bustling urban street at dusk, with a large digital billboard cycling through various colorful ads, each transitioning smoothly into the next. The final ad displays a clear message: "Drive Safely", illuminated against a darkening sky. Pedestrians and vehicles are visible, adding life to the scene.
+0.0, 0.0, "Abstract No 5 2023" hangs in a modern art gallery, its vibrant colors and dynamic lines drawing the eye. The piece is displayed on a minimalist white wall, with soft, ambient lighting that highlights the textures and depth of the abstract composition.
+0.3571428656578064, 0.3189480865929208, A roadside warning sign, shaped as a yellow diamond, prominently displays "Sharp Turn Ahead" in bold black letters, set against a backdrop of winding road and lush greenery, under a clear blue sky.
+0.0, 0.0, A high-resolution screen in a modern digital museum displays "Exhibit A", featuring an interactive interface with elegant typography and a minimalist design, set against a sleek, black background.
+0.3222222328186035, 0.8872032622170867, A close-up photograph of a plant tag in a garden center, clearly displaying the text "Sunflower Tall Variety", with a backdrop of vibrant sunflower plants towering behind it.
+0.2469135820865631, 1.2468657383634099, A candid shot of a person sitting in a cozy living room, surrounded by playful dogs, with a reality TV confessional screen in the background displaying the title "I Came Here to Pet Dogs".
+0.16993464529514313, 0.5684313725851536, Retro gaming cartridge label with bold, neon colors: "Pong 2 The Reckoning". The label features a vintage 8-bit aesthetic with pixelated graphics of two futuristic paddles and a glowing ball, set against a backdrop of 1980s arcade patterns.
+0.0, 0.0, A rugged trail winds through a forest, leading to a wooden hiker’s trail marker that reads "Peak 2 Miles" under a canopy of tall pine trees, with a glimpse of a distant mountain range through the foliage.
+0.11764705926179886, -1.441288065128933, A realistic photograph of a bus stop with a modern schedule sign prominently displaying "Route 66 Next Bus 5 PM" under a clear blue sky, with a few people waiting and a cityscape in the background.
+0.11029411852359772, -0.1692662334050917, Retro gaming cartridge label with bold, neon colors: "Pong 2 The Reckoning". The label features a vintage 8-bit aesthetic with pixelated graphics of two futuristic paddles and a glowing ball, set against a backdrop of 1980s arcade patterns.
+0.1111111119389534, 0.12206204679893505, A detailed close-up of a dragon rider's leather jacket, showcasing an intricately embroidered patch that reads "License to Burninate" in bold, fiery letters, surrounded by swirling flames and a majestic dragon in mid-flight.
+0.0, -1.0787895376252186, A young adult wearing a cozy hoodie with "Certified Nap Enthusiast" embroidered on the back, lounging on a plush sofa in a sunlit room, surrounded by fluffy pillows and a book resting on their chest, capturing a moment of serene relaxation.
+0.23529411852359772, 0.8647728098688228, A realistic photograph of a bus stop with a modern schedule sign prominently displaying "Route 66 Next Bus 5 PM" under a clear blue sky, with a few people waiting and a cityscape in the background.
+0.0, -0.8960520588648991, A noir-style illustration of a detective's notebook open to a page with the entry "Suspect Last Seen at Midnight", under a dim streetlamp in a rain-soaked alley, with a shadowy figure in the distance.
+0.2152777761220932, -0.686945988244741, A futuristic sci-fi setting featuring a large, glowing alien warning symbol on a metallic surface, prominently displaying the text "Humans Prohibited" in bold, futuristic font, with a dark, ominous atmosphere and subtle cybernetic details.
+0.16883116960525513, 0.01569632215902324, A bustling urban street at dusk, with a large digital billboard cycling through various colorful ads, each transitioning smoothly into the next. The final ad displays a clear message: "Drive Safely", illuminated against a darkening sky. Pedestrians and vehicles are visible, adding life to the scene.
+0.1262626200914383, 0.16119838114840193, A young adult wearing a cozy hoodie with "Certified Nap Enthusiast" embroidered on the back, lounging on a plush sofa in a sunlit room, surrounded by fluffy pillows and a book resting on their chest, capturing a moment of serene relaxation.
+0.14444445073604584, -0.4032742002653513, A close-up photograph of a plant tag in a garden center, clearly displaying the text "Sunflower Tall Variety", with a backdrop of vibrant sunflower plants towering behind it.
+0.0, 0.0, "Abstract No 5 2023" hangs in a modern art gallery, its vibrant colors and dynamic lines drawing the eye. The piece is displayed on a minimalist white wall, with soft, ambient lighting that highlights the textures and depth of the abstract composition.
+0.054999999701976776, 0.27502584961037907, A noir-style illustration of a detective's notebook open to a page with the entry "Suspect Last Seen at Midnight", under a dim streetlamp in a rain-soaked alley, with a shadowy figure in the distance.
+0.1617647111415863, 0.9888500755021833, A superhero stands on a city rooftop at sunset, his cape emblazoned with the embroidered words "Cape City Protector" billowing in the wind, casting a determined silhouette against the skyline.
+0.27272728085517883, 1.0202629574373294, A bustling urban street at dusk, with a large digital billboard cycling through various colorful ads, each transitioning smoothly into the next. The final ad displays a clear message: "Drive Safely", illuminated against a darkening sky. Pedestrians and vehicles are visible, adding life to the scene.
+0.2777777910232544, -0.19756701376441896, A roadside warning sign, shaped as a yellow diamond, prominently displays "Sharp Turn Ahead" in bold black letters, set against a backdrop of winding road and lush greenery, under a clear blue sky.
+0.0, 0.0, A rugged trail winds through a forest, leading to a wooden hiker’s trail marker that reads "Peak 2 Miles" under a canopy of tall pine trees, with a glimpse of a distant mountain range through the foliage.
+0.15079365670681, -1.3793827008274582, A candid shot of a person sitting in a cozy living room, surrounded by playful dogs, with a reality TV confessional screen in the background displaying the title "I Came Here to Pet Dogs".
+0.0, -1.1820970158288224, An ancient vase fragment, partially buried in sandy soil, with faded text "Made in Atlantis" barely visible under a layer of moss and lichen, surrounded by fallen leaves and overgrown vines.
+0.0, -1.4517871588135638, A close-up photograph of a plant tag in a garden center, clearly displaying the text "Sunflower Tall Variety", with a backdrop of vibrant sunflower plants towering behind it.
+0.1428571492433548, 0.16887100226126037, An ancient vase fragment, partially buried in sandy soil, with faded text "Made in Atlantis" barely visible under a layer of moss and lichen, surrounded by fallen leaves and overgrown vines.
+0.04545454680919647, -0.6323938517451378, A young adult wearing a cozy hoodie with "Certified Nap Enthusiast" embroidered on the back, lounging on a plush sofa in a sunlit room, surrounded by fluffy pillows and a book resting on their chest, capturing a moment of serene relaxation.
+0.0714285746216774, -0.5066130067837811, An ancient vase fragment, partially buried in sandy soil, with faded text "Made in Atlantis" barely visible under a layer of moss and lichen, surrounded by fallen leaves and overgrown vines.
+0.2857142984867096, 1.5198390203513432, An ancient vase fragment, partially buried in sandy soil, with faded text "Made in Atlantis" barely visible under a layer of moss and lichen, surrounded by fallen leaves and overgrown vines.
+0.4097222089767456, 1.5759349856146423, A futuristic sci-fi setting featuring a large, glowing alien warning symbol on a metallic surface, prominently displaying the text "Humans Prohibited" in bold, futuristic font, with a dark, ominous atmosphere and subtle cybernetic details.
+0.0, 0.0, A high-resolution screen in a modern digital museum displays "Exhibit A", featuring an interactive interface with elegant typography and a minimalist design, set against a sleek, black background.
+0.0, 0.0, "Abstract No 5 2023" hangs in a modern art gallery, its vibrant colors and dynamic lines drawing the eye. The piece is displayed on a minimalist white wall, with soft, ambient lighting that highlights the textures and depth of the abstract composition.
+0.12418300658464432, -0.8306340922788825, A superhero stands on a city rooftop at sunset, his cape emblazoned with the embroidered words "Cape City Protector" billowing in the wind, casting a determined silhouette against the skyline.
+0.18518517911434174, -0.43971611570125585, A candid shot of a person sitting in a cozy living room, surrounded by playful dogs, with a reality TV confessional screen in the background displaying the title "I Came Here to Pet Dogs".
+0.24183006584644318, 0.9928872948107712, A realistic photograph of a bus stop with a modern schedule sign prominently displaying "Route 66 Next Bus 5 PM" under a clear blue sky, with a few people waiting and a cityscape in the background.
+0.0, -0.8544345240301369, A detailed close-up of a dragon rider's leather jacket, showcasing an intricately embroidered patch that reads "License to Burninate" in bold, fiery letters, surrounded by swirling flames and a majestic dragon in mid-flight.
+0.1875, -1.0102146987960814, A futuristic sci-fi setting featuring a large, glowing alien warning symbol on a metallic surface, prominently displaying the text "Humans Prohibited" in bold, futuristic font, with a dark, ominous atmosphere and subtle cybernetic details.
+0.2222222238779068, 0.5722330781653041, A candid shot of a person sitting in a cozy living room, surrounded by playful dogs, with a reality TV confessional screen in the background displaying the title "I Came Here to Pet Dogs".
+0.08571428805589676, -1.447533702096343, A roadside warning sign, shaped as a yellow diamond, prominently displays "Sharp Turn Ahead" in bold black letters, set against a backdrop of winding road and lush greenery, under a clear blue sky.
+0.0, 0.0, "Abstract No 5 2023" hangs in a modern art gallery, its vibrant colors and dynamic lines drawing the eye. The piece is displayed on a minimalist white wall, with soft, ambient lighting that highlights the textures and depth of the abstract composition.
+0.0, 0.0, A rugged trail winds through a forest, leading to a wooden hiker’s trail marker that reads "Peak 2 Miles" under a canopy of tall pine trees, with a glimpse of a distant mountain range through the foliage.
+0.1515151560306549, 0.753470864416191, A construction worker pauses on a scaffolding, their yellow helmet prominently displaying a sticker that reads "Safety First" in bold black letters, contrasting against the sunny, bustling construction site in the background.
+0.23076923191547394, 1.4993101918612235, A colorful child's drawing on a fridge, featuring crayon letters that spell "My Happy Family", surrounded by playful doodles and stick figures depicting a joyful family scene.
+0.35227271914482117, 0.9106189659762034, A close-up of a motivational wristband, intricately engraved with "Never Give Up", worn on a tanned arm, with a soft focus on a vibrant sunset in the background, emphasizing the message of perseverance.
+0.2777777910232544, 0.008768828910052194, In a bustling mall, a modern, illuminated sign reads "sounds", hanging above a busy electronics section where shoppers browse through headphones and speakers. The vibrant lights and dynamic atmosphere highlight the technological and social hub of the mall.
+0.375, 1.7309847973942227, A detailed fantasy map on ancient parchment, featuring a dense forest labeled "Elvenwild", surrounded by mystical symbols and intricate borders, with a soft, golden glow illuminating the edges.
+0.0, -0.5769949324647409, A detailed fantasy map on ancient parchment, featuring a dense forest labeled "Elvenwild", surrounded by mystical symbols and intricate borders, with a soft, golden glow illuminating the edges.
+0.3333333432674408, 0.7757125704337273, A close-up of a motivational wristband, intricately engraved with "Never Give Up", worn on a tanned arm, with a soft focus on a vibrant sunset in the background, emphasizing the message of perseverance.
+0.0, -0.8743226139306289, A vast, golden wheat field under a twilight sky, interrupted by a precise, intricate crop circle that spells out "Take Me To Your WiFi" in clear, geometric patterns. A mysterious, shimmering UFO hovers above, casting a soft, ethereal glow on the message.
+0.19230769574642181, 0.30132237218487795, A realistic photograph of graffiti spray-painted "Revolution Now" on a crumbling brick wall, with peeling paint and moss adding to the aged, urban decay aesthetic.
+0.11764705926179886, -0.6231658375821179, A beautifully decorated birthday cake with smooth, white icing and colorful accents. The icing elegantly reads "Happy 30th Birthday" in bold, cursive letters. The cake is surrounded by lit candles, creating a warm and festive atmosphere.
+0.0, -0.5756221241945569, A vibrant close-up of a festival wristband "Music Fest 2024" featuring neon colors and intricate designs, set against a blurred background of excited concert-goers and colorful lights, capturing the energetic atmosphere of the music festival.
+0.3333333432674408, 1.0981438580695941, A rustic, carved wooden sign stands at the edge of a forest path, pointing towards the "Trailhead 2 Miles" ahead, surrounded by tall trees and overgrown foliage, with a soft, dappled light filtering through the canopy.
+0.1975308656692505, 0.5472670133626433, A realistic photograph of a modern train station with a digital announcement board prominently displaying "Platform 5 Departing", surrounded by waiting passengers and the sleek silhouette of a train in the background.
+0.0, -1.3134418254749511, A beautifully decorated birthday cake with smooth, white icing and colorful accents. The icing elegantly reads "Happy 30th Birthday" in bold, cursive letters. The cake is surrounded by lit candles, creating a warm and festive atmosphere.
+0.11538461595773697, 0.11533154634579786, A colorful child's drawing on a fridge, featuring crayon letters that spell "My Happy Family", surrounded by playful doodles and stick figures depicting a joyful family scene.
+0.0, -0.9039671165546339, A realistic photograph of graffiti spray-painted "Revolution Now" on a crumbling brick wall, with peeling paint and moss adding to the aged, urban decay aesthetic.
+0.0, -0.5769949324647409, A detailed fantasy map on ancient parchment, featuring a dense forest labeled "Elvenwild", surrounded by mystical symbols and intricate borders, with a soft, golden glow illuminating the edges.
+0.1319444477558136, -0.6953377231418497, A bustling city street with a vintage store window displaying a retro price tag that reads "5 Dollar Sale Today", surrounded by colorful merchandise and illuminated by the warm glow of the setting sun.
+0.0, -0.5768239202083522, A solemn war memorial statue titled "For Those We Lost 1918", standing in a quiet, leafy park. The statue, crafted from weathered bronze, depicts a soldier holding a helmet, surrounded by wreaths and poppies, with a somber sky and a few people paying their respects in the background.
+0.38461539149284363, 1.5066118609243897, A realistic photograph of graffiti spray-painted "Revolution Now" on a crumbling brick wall, with peeling paint and moss adding to the aged, urban decay aesthetic.
+0.1568627506494522, -1.1341746780787885, A detailed diagram from a wizard school textbook, titled "Levitate Your Ex 101", showing various magical techniques and incantations for levitation, with illustrations of wands, floating objects, and a whimsical, illustrated ex-partner floating mid-air.
+0.0, -0.5756221241945569, A vibrant close-up of a festival wristband "Music Fest 2024" featuring neon colors and intricate designs, set against a blurred background of excited concert-goers and colorful lights, capturing the energetic atmosphere of the music festival.
+0.4285714328289032, -0.3254243445778753, A close-up photograph of a shiny dog collar tag, shaped like a realistic bone, with the text "Good Boy" engraved on it, set against a soft, blurred background of grass and flowers.
+0.19191919267177582, 1.2171451767473715, A construction worker pauses on a scaffolding, their yellow helmet prominently displaying a sticker that reads "Safety First" in bold black letters, contrasting against the sunny, bustling construction site in the background.
+0.2916666567325592, 1.1462371511490306, A vintage seed packet for "Heirloom Tomatoes", featuring a nostalgic illustration of a bountiful tomato plant with ripe, varied tomatoes, set against a rustic, weathered paper background.
+0.07692307978868484, 1.726866372583671, A vibrant close-up of a festival wristband "Music Fest 2024" featuring neon colors and intricate designs, set against a blurred background of excited concert-goers and colorful lights, capturing the energetic atmosphere of the music festival.
+0.3986928164958954, 1.0258268268766761, A beautifully decorated birthday cake with smooth, white icing and colorful accents. The icing elegantly reads "Happy 30th Birthday" in bold, cursive letters. The cake is surrounded by lit candles, creating a warm and festive atmosphere.
+0.0, -1.5986423262363552, A close-up of a motivational wristband, intricately engraved with "Never Give Up", worn on a tanned arm, with a soft focus on a vibrant sunset in the background, emphasizing the message of perseverance.
+0.0, -0.5756221241945569, A vibrant close-up of a festival wristband "Music Fest 2024" featuring neon colors and intricate designs, set against a blurred background of excited concert-goers and colorful lights, capturing the energetic atmosphere of the music festival.
+0.0, -0.9039671165546339, A realistic photograph of graffiti spray-painted "Revolution Now" on a crumbling brick wall, with peeling paint and moss adding to the aged, urban decay aesthetic.
+0.0, -0.5768239202083522, A solemn war memorial statue titled "For Those We Lost 1918", standing in a quiet, leafy park. The statue, crafted from weathered bronze, depicts a soldier holding a helmet, surrounded by wreaths and poppies, with a somber sky and a few people paying their respects in the background.
+0.07407407462596893, -1.5130321701528529, A realistic photograph of a modern train station with a digital announcement board prominently displaying "Platform 5 Departing", surrounded by waiting passengers and the sleek silhouette of a train in the background.
+0.0, -1.268647099169628, A colorful child's drawing on a fridge, featuring crayon letters that spell "My Happy Family", surrounded by playful doodles and stick figures depicting a joyful family scene.
+0.0, -0.9934055601461461, A vintage seed packet for "Heirloom Tomatoes", featuring a nostalgic illustration of a bountiful tomato plant with ripe, varied tomatoes, set against a rustic, weathered paper background.
+0.0, -0.9934055601461461, A vintage seed packet for "Heirloom Tomatoes", featuring a nostalgic illustration of a bountiful tomato plant with ripe, varied tomatoes, set against a rustic, weathered paper background.
+0.3185185194015503, 0.8003419815401808, A rustic, carved wooden sign stands at the edge of a forest path, pointing towards the "Trailhead 2 Miles" ahead, surrounded by tall trees and overgrown foliage, with a soft, dappled light filtering through the canopy.
+0.25, 0.8405739691432617, A vintage seed packet for "Heirloom Tomatoes", featuring a nostalgic illustration of a bountiful tomato plant with ripe, varied tomatoes, set against a rustic, weathered paper background.
+0.5102040767669678, 0.1839354101736168, A close-up photograph of a shiny dog collar tag, shaped like a realistic bone, with the text "Good Boy" engraved on it, set against a soft, blurred background of grass and flowers.
+0.0, -0.5768239202083522, A solemn war memorial statue titled "For Those We Lost 1918", standing in a quiet, leafy park. The statue, crafted from weathered bronze, depicts a soldier holding a helmet, surrounded by wreaths and poppies, with a somber sky and a few people paying their respects in the background.
+0.07692307978868484, -0.3459946390373936, A colorful child's drawing on a fridge, featuring crayon letters that spell "My Happy Family", surrounded by playful doodles and stick figures depicting a joyful family scene.
+0.0, -0.5769949324647409, A detailed fantasy map on ancient parchment, featuring a dense forest labeled "Elvenwild", surrounded by mystical symbols and intricate borders, with a soft, golden glow illuminating the edges.
+0.0, -1.3065494747888389, In a bustling mall, a modern, illuminated sign reads "sounds", hanging above a busy electronics section where shoppers browse through headphones and speakers. The vibrant lights and dynamic atmosphere highlight the technological and social hub of the mall.
+0.21212121844291687, -0.08768921017357544, A close-up of a motivational wristband, intricately engraved with "Never Give Up", worn on a tanned arm, with a soft focus on a vibrant sunset in the background, emphasizing the message of perseverance.
+0.1985294073820114, -0.49678738567400166, A detailed diagram from a wizard school textbook, titled "Levitate Your Ex 101", showing various magical techniques and incantations for levitation, with illustrations of wands, floating objects, and a whimsical, illustrated ex-partner floating mid-air.
+0.23456789553165436, 1.1653566440788496, A realistic photograph of a modern train station with a digital announcement board prominently displaying "Platform 5 Departing", surrounded by waiting passengers and the sleek silhouette of a train in the background.
+0.0, -0.8743226139306289, A vast, golden wheat field under a twilight sky, interrupted by a precise, intricate crop circle that spells out "Take Me To Your WiFi" in clear, geometric patterns. A mysterious, shimmering UFO hovers above, casting a soft, ethereal glow on the message.
+0.379084974527359, 0.9107808361803928, A beautifully decorated birthday cake with smooth, white icing and colorful accents. The icing elegantly reads "Happy 30th Birthday" in bold, cursive letters. The cake is surrounded by lit candles, creating a warm and festive atmosphere.
+0.3333333432674408, 1.565348682766085, A detailed diagram from a wizard school textbook, titled "Levitate Your Ex 101", showing various magical techniques and incantations for levitation, with illustrations of wands, floating objects, and a whimsical, illustrated ex-partner floating mid-air.
+0.3333333432674408, 1.5585751416846, A vast, golden wheat field under a twilight sky, interrupted by a precise, intricate crop circle that spells out "Take Me To Your WiFi" in clear, geometric patterns. A mysterious, shimmering UFO hovers above, casting a soft, ethereal glow on the message.
+0.125, -0.8344053423718685, A bustling city street with a vintage store window displaying a retro price tag that reads "5 Dollar Sale Today", surrounded by colorful merchandise and illuminated by the warm glow of the setting sun.
+0.2698412835597992, -1.3158461415825238, A close-up photograph of a shiny dog collar tag, shaped like a realistic bone, with the text "Good Boy" engraved on it, set against a soft, blurred background of grass and flowers.
+0.0, -0.9853080205817814, A construction worker pauses on a scaffolding, their yellow helmet prominently displaying a sticker that reads "Safety First" in bold black letters, contrasting against the sunny, bustling construction site in the background.
+0.1597222238779068, -0.13906754462836993, A bustling city street with a vintage store window displaying a retro price tag that reads "5 Dollar Sale Today", surrounded by colorful merchandise and illuminated by the warm glow of the setting sun.
+0.23529411852359772, 0.06561338098670502, A detailed diagram from a wizard school textbook, titled "Levitate Your Ex 101", showing various magical techniques and incantations for levitation, with illustrations of wands, floating objects, and a whimsical, illustrated ex-partner floating mid-air.
+0.23333333432674408, -0.2016821476620052, In a bustling mall, a modern, illuminated sign reads "sounds", hanging above a busy electronics section where shoppers browse through headphones and speakers. The vibrant lights and dynamic atmosphere highlight the technological and social hub of the mall.
+0.2530864179134369, 1.7304717606250566, A solemn war memorial statue titled "For Those We Lost 1918", standing in a quiet, leafy park. The statue, crafted from weathered bronze, depicts a soldier holding a helmet, surrounded by wreaths and poppies, with a somber sky and a few people paying their respects in the background.
+0.2518518567085266, -0.5397655642299911, A rustic, carved wooden sign stands at the edge of a forest path, pointing towards the "Trailhead 2 Miles" ahead, surrounded by tall trees and overgrown foliage, with a soft, dappled light filtering through the canopy.
+0.1458333283662796, 0.19007008617665774, A vast, golden wheat field under a twilight sky, interrupted by a precise, intricate crop circle that spells out "Take Me To Your WiFi" in clear, geometric patterns. A mysterious, shimmering UFO hovers above, casting a soft, ethereal glow on the message.
+0.0, -0.9853080205817814, A construction worker pauses on a scaffolding, their yellow helmet prominently displaying a sticker that reads "Safety First" in bold black letters, contrasting against the sunny, bustling construction site in the background.
+0.25, 1.668810610142088, A bustling city street with a vintage store window displaying a retro price tag that reads "5 Dollar Sale Today", surrounded by colorful merchandise and illuminated by the warm glow of the setting sun.
+0.5925925970077515, 1.4994627935407918, In a bustling mall, a modern, illuminated sign reads "sounds", hanging above a busy electronics section where shoppers browse through headphones and speakers. The vibrant lights and dynamic atmosphere highlight the technological and social hub of the mall.
+0.1527777761220932, -0.19959148728864, A realistic photograph of a modern train station with a digital announcement board prominently displaying "Platform 5 Departing", surrounded by waiting passengers and the sleek silhouette of a train in the background.
+0.7142857313156128, 1.4573350759867822, A close-up photograph of a shiny dog collar tag, shaped like a realistic bone, with the text "Good Boy" engraved on it, set against a soft, blurred background of grass and flowers.
+0.21111111342906952, -1.3587202753797838, A rustic, carved wooden sign stands at the edge of a forest path, pointing towards the "Trailhead 2 Miles" ahead, surrounded by tall trees and overgrown foliage, with a soft, dappled light filtering through the canopy.
 === policy_loss at timestep 0 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 1 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 2 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 3 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 4 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 5 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 6 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 7 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 8 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 9 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 10 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 11 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 12 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 13 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 14 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 15 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 16 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 === policy_loss at timestep 17 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 
 === log_probs at timestep 18 batch 0 ===
-1.0731545686721802, 1.0756534337997437, 1.0742871761322021, 1.0726358890533447, 1.0744316577911377, 1.0730561017990112, 1.0730559825897217, 1.0726358890533447, 1.0747029781341553, 1.0747758150100708, 1.072876214981079, 1.0737699270248413, 1.0735220909118652, 1.0746572017669678, 1.07174813747406, 1.0733307600021362, 1.0700223445892334, 1.0742915868759155, 1.0709857940673828, 1.0744181871414185, 1.0734425783157349, 1.0735692977905273, 1.0723179578781128, 1.0766724348068237, 1.0700042247772217, 1.0731583833694458, 1.072693109512329, 1.0720478296279907, 1.0721909999847412, 
-log_prob: global_batch_size: 29, min: 1.0700042247772217, max: 1.0766724348068237, mean: 1.073245122514922
+1.0731545686721802, 1.0756534337997437, 1.0742870569229126, 1.0726358890533447, 1.0744316577911377, 1.0730561017990112, 1.0730561017990112, 1.0726358890533447, 1.0746572017669678, 1.07386314868927, 1.07174813747406, 1.0735220909118652, 1.0719468593597412, 1.0728763341903687, 1.0739315748214722, 1.0735782384872437, 1.0722705125808716, 1.0726821422576904, 1.0735692977905273, 1.0700223445892334, 1.0742915868759155, 1.0734425783157349, 1.073676347732544, 1.072029709815979, 1.0723179578781128, 1.0721909999847412, 1.0714985132217407, 1.0700042247772217, 1.0720478296279907, 1.0731583833694458, 1.072644591331482, 1.0738084316253662, 1.0747766494750977, 1.0737947225570679, 1.0718215703964233, 1.0716068744659424, 1.072583794593811, 1.0743244886398315, 1.0706926584243774, 1.0738029479980469, 1.0732688903808594, 1.07221519947052, 1.0722901821136475, 1.0746967792510986, 1.072288155555725, 1.0740596055984497, 1.0748928785324097, 1.0742897987365723, 1.072614312171936, 1.072892189025879, 1.0746395587921143, 1.0703235864639282, 1.0730860233306885, 1.074474573135376, 1.0716750621795654, 1.0739012956619263, 1.0736150741577148, 1.0749766826629639, 1.075461983680725, 1.0748944282531738, 
+log_prob: global_batch_size: 60, min: 1.0700042247772217, max: 1.0756534337997437, mean: 1.0731441617012023
 
 === ratios at timestep 18 batch 0 ===
-1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 
-ratio: global_batch_size: 29, min: 1.0, max: 1.0, mean: 1.0
+1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 
+ratio: global_batch_size: 60, min: 1.0, max: 1.0, mean: 1.0
 === policy_loss at timestep 18 batch 0 ===
--0.12890992473474278
+-0.3591608480945102
 
 === optimizer step performed ===
 
 === policy_loss at timestep 0 batch 1 ===
-0.311966512726699
+0.05358200248963839
 === policy_loss at timestep 1 batch 1 ===
-0.31198351192524965
+0.05357546563843461
 === policy_loss at timestep 2 batch 1 ===
-0.31195363991243175
+0.05356804715558797
 === policy_loss at timestep 3 batch 1 ===
-0.31197108203079715
+0.05357433363318159
 === policy_loss at timestep 4 batch 1 ===
-0.31195617397224495
+0.053561171765207055
 === policy_loss at timestep 5 batch 1 ===
-0.3119588211897367
+0.05354735719693164
 === policy_loss at timestep 6 batch 1 ===
-0.3119714266626901
+0.053532990408013126
 === policy_loss at timestep 7 batch 1 ===
-0.31197465187747275
+0.053526501784450786
 === policy_loss at timestep 8 batch 1 ===
-0.31195671833322974
+0.053541712309884734
 === policy_loss at timestep 9 batch 1 ===
-0.31197806008718526
+0.053513084134626895
 === policy_loss at timestep 10 batch 1 ===
-0.31197256936894624
+0.05345480744491654
 === policy_loss at timestep 11 batch 1 ===
-0.31208793174009114
-=== policy_loss at timestep 12 batch 1 ===
-0.31199968097439024
-=== policy_loss at timestep 13 batch 1 ===
-0.31199028314167854
-=== policy_loss at timestep 14 batch 1 ===
-0.3123230259751785
-=== policy_loss at timestep 15 batch 1 ===
-0.31237353579075183
-=== policy_loss at timestep 16 batch 1 ===
-0.31309290374779175
-=== policy_loss at timestep 17 batch 1 ===
-0.3152075251965321
+0.05348599662867272
+=== batch 0 (j=0) ===
+sum_initial_latents_fp64: -2833.963320594627
+sum_intermediate_latents_fp64: 1389998.9199967666
+sum_model_pred_fp64: -4125150.5417776126
+sum_prompt_embeds_fp64: -8.296509359497577
+sum_negative_prompt_embeds_fp64: -11.28184723854065
+sum_decoded_fp64: 22931941.230002373
+num_inference_steps: 20
+guidance_scale: 4.5
+height: 240
+width: 416
+num_frames: 33
+batch_size: 8
+step_0 sum_model_pred_fp64: -279094.61103501916
+step_0 sum_intermediate_latents_fp64: 1902.0743654416292
+step_0 sum_variance_noise_fp64: -789.683116232052
+step_1 sum_model_pred_fp64: -213475.00434269756
+step_1 sum_intermediate_latents_fp64: 5646.45971239161
+step_1 sum_variance_noise_fp64: -1650.2171930825245
+step_2 sum_model_pred_fp64: -184164.8534064889
+step_2 sum_intermediate_latents_fp64: 9427.719714498176
+step_2 sum_variance_noise_fp64: 877.1397947799464
+step_3 sum_model_pred_fp64: -192129.2213821113
+step_3 sum_intermediate_latents_fp64: 13646.743672386743
+step_3 sum_variance_noise_fp64: 736.812491993373
+step_4 sum_model_pred_fp64: -190999.2981209308
+step_4 sum_intermediate_latents_fp64: 18350.721968635684
+step_4 sum_variance_noise_fp64: 2061.4611658635285
+step_5 sum_model_pred_fp64: -198360.25216513313
+step_5 sum_intermediate_latents_fp64: 23445.91745023543
+step_5 sum_variance_noise_fp64: 847.0691408767577
+step_6 sum_model_pred_fp64: -202850.078239277
+step_6 sum_intermediate_latents_fp64: 28792.479894006858
+step_6 sum_variance_noise_fp64: -1336.0408117195327
+step_7 sum_model_pred_fp64: -206138.16465693712
+step_7 sum_intermediate_latents_fp64: 34934.47183205564
+step_7 sum_variance_noise_fp64: -11.548195632876286
+step_8 sum_model_pred_fp64: -205848.82549402118
+step_8 sum_intermediate_latents_fp64: 41550.74635823781
+step_8 sum_variance_noise_fp64: -694.2449807570148
+step_9 sum_model_pred_fp64: -205924.14424221218
+step_9 sum_intermediate_latents_fp64: 49048.09518311749
+step_9 sum_variance_noise_fp64: 732.648895439603
+step_10 sum_model_pred_fp64: -206030.8325916864
+step_10 sum_intermediate_latents_fp64: 57506.92196408968
+step_10 sum_variance_noise_fp64: 1982.1610815613556
+step_11 sum_model_pred_fp64: -205666.4696892351
+step_11 sum_intermediate_latents_fp64: 66497.11959118114
+step_11 sum_variance_noise_fp64: -418.5702384404828
+step_12 sum_model_pred_fp64: -204631.77123096585
+step_12 sum_intermediate_latents_fp64: 76732.0313161526
+step_12 sum_variance_noise_fp64: 1222.7006414796608
+step_13 sum_model_pred_fp64: -205271.78089046478
+step_13 sum_intermediate_latents_fp64: 87838.43800401685
+step_13 sum_variance_noise_fp64: -1694.874662188572
+step_14 sum_model_pred_fp64: -204296.9119690135
+step_14 sum_intermediate_latents_fp64: 100661.2368659685
+step_14 sum_variance_noise_fp64: 221.7823308666558
+step_15 sum_model_pred_fp64: -203244.57309937105
+step_15 sum_intermediate_latents_fp64: 115272.70080703133
+step_15 sum_variance_noise_fp64: 623.7748358961333
+step_16 sum_model_pred_fp64: -202434.40252945572
+step_16 sum_intermediate_latents_fp64: 132057.95070540297
+step_16 sum_variance_noise_fp64: 838.3412947085856
+step_17 sum_model_pred_fp64: -202192.29689759016
+step_17 sum_intermediate_latents_fp64: 151742.15785620292
+step_17 sum_variance_noise_fp64: 2384.4944336419594
+step_18 sum_model_pred_fp64: -199488.70677918196
+step_18 sum_intermediate_latents_fp64: 174341.20770946474
+step_18 sum_variance_noise_fp64: -299.3766390163852
+step_19 sum_model_pred_fp64: -212908.3430158198
+step_19 sum_intermediate_latents_fp64: 203437.68834684318
+step_19 sum_variance_noise_fp64: 86.60947481863707
+=== batch 1 (j=0) ===
+sum_initial_latents_fp64: -2833.963320594627
+sum_intermediate_latents_fp64: 881095.7735906722
+sum_model_pred_fp64: -2655263.338093858
+sum_prompt_embeds_fp64: 403.7386286689434
+sum_negative_prompt_embeds_fp64: -11.28184723854065
+sum_decoded_fp64: 27513110.185762465
+num_inference_steps: 20
+guidance_scale: 4.5
+height: 240
+width: 416
+num_frames: 33
+batch_size: 8
+step_0 sum_model_pred_fp64: -106317.27580952644
+step_0 sum_intermediate_latents_fp64: -1078.2893243554572
+step_0 sum_variance_noise_fp64: -789.683116232052
+step_1 sum_model_pred_fp64: -168602.55648609996
+step_1 sum_intermediate_latents_fp64: 1856.1237229025865
+step_1 sum_variance_noise_fp64: -1650.2171930825245
+step_2 sum_model_pred_fp64: -110994.41274166107
+step_2 sum_intermediate_latents_fp64: 4195.828070405725
+step_2 sum_variance_noise_fp64: 877.1397947799464
+step_3 sum_model_pred_fp64: -129842.5038708672
+step_3 sum_intermediate_latents_fp64: 7100.651850953291
+step_3 sum_variance_noise_fp64: 736.812491993373
+step_4 sum_model_pred_fp64: -135821.94453421235
+step_4 sum_intermediate_latents_fp64: 10554.486994393053
+step_4 sum_variance_noise_fp64: 2061.4611658635285
+step_5 sum_model_pred_fp64: -134349.1255077049
+step_5 sum_intermediate_latents_fp64: 14064.006617088104
+step_5 sum_variance_noise_fp64: 847.0691408767577
+step_6 sum_model_pred_fp64: -134646.17856879532
+step_6 sum_intermediate_latents_fp64: 17566.463197751873
+step_6 sum_variance_noise_fp64: -1336.0408117195327
+step_7 sum_model_pred_fp64: -134798.25380451232
+step_7 sum_intermediate_latents_fp64: 21597.56916789658
+step_7 sum_variance_noise_fp64: -11.548195632876286
+step_8 sum_model_pred_fp64: -135078.83952848986
+step_8 sum_intermediate_latents_fp64: 25921.640242924623
+step_8 sum_variance_noise_fp64: -694.2449807570148
+step_9 sum_model_pred_fp64: -134510.19390697405
+step_9 sum_intermediate_latents_fp64: 30872.480683740287
+step_9 sum_variance_noise_fp64: 732.648895439603
+step_10 sum_model_pred_fp64: -134349.067566216
+step_10 sum_intermediate_latents_fp64: 36505.09813705251
+step_10 sum_variance_noise_fp64: 1982.1610815613556
+step_11 sum_model_pred_fp64: -134609.38325500488
+step_11 sum_intermediate_latents_fp64: 42385.11731420859
+step_11 sum_variance_noise_fp64: -418.5702384404828
+step_12 sum_model_pred_fp64: -134189.3432775177
+step_12 sum_intermediate_latents_fp64: 49177.00213661246
+step_12 sum_variance_noise_fp64: 1222.7006414796608
+step_13 sum_model_pred_fp64: -134628.37632863596
+step_13 sum_intermediate_latents_fp64: 56396.98467427973
+step_13 sum_variance_noise_fp64: -1694.874662188572
+step_14 sum_model_pred_fp64: -133680.62180084735
+step_14 sum_intermediate_latents_fp64: 64816.39889544944
+step_14 sum_variance_noise_fp64: 221.7823308666558
+step_15 sum_model_pred_fp64: -132049.10683778673
+step_15 sum_intermediate_latents_fp64: 74348.25807225227
+step_15 sum_variance_noise_fp64: 623.7748358961333
+step_16 sum_model_pred_fp64: -131900.7765089944
+step_16 sum_intermediate_latents_fp64: 85333.29026857107
+step_16 sum_variance_noise_fp64: 838.3412947085856
+step_17 sum_model_pred_fp64: -131214.02208311483
+step_17 sum_intermediate_latents_fp64: 98201.54032080132
+step_17 sum_variance_noise_fp64: 2384.4944336419594
+step_18 sum_model_pred_fp64: -130163.25983253121
+step_18 sum_intermediate_latents_fp64: 112949.52106524608
+step_18 sum_variance_noise_fp64: -299.3766390163852
+step_19 sum_model_pred_fp64: -133518.09584436566
+step_19 sum_intermediate_latents_fp64: 131165.5648030926
+step_19 sum_variance_noise_fp64: 86.60947481863707
 
-=== log_probs at timestep 18 batch 1 ===
-1.0283178091049194, 1.0536670684814453, 1.047950267791748, 1.0502901077270508, 1.052658200263977, 1.0477033853530884, 1.0557972192764282, 1.0607223510742188, 1.0579837560653687, 1.056700348854065, 1.0566014051437378, 1.0620416402816772, 1.0497784614562988, 1.05385422706604, 1.059545874595642, 1.0622984170913696, 1.0498470067977905, 1.054733157157898, 1.0689723491668701, 1.0530188083648682, 1.0528377294540405, 1.0658559799194336, 1.0506540536880493, 1.0630868673324585, 1.0522030591964722, 1.0610737800598145, 1.0495717525482178, 1.0589410066604614, 1.0589427947998047, 
-log_prob: global_batch_size: 29, min: 1.0283178091049194, max: 1.0689723491668701, mean: 1.0550223753370087
+=== reward, advantage, prompt (one per line, same order as prompts.txt) ===
+0.21568627655506134, 1.1343363147040206, Retro gaming cartridge label with bold, neon colors: "Pong 2 The Reckoning". The label features a vintage 8-bit aesthetic with pixelated graphics of two futuristic paddles and a glowing ball, set against a backdrop of 1980s arcade patterns.
+0.0, -0.8544345240301369, A detailed close-up of a dragon rider's leather jacket, showcasing an intricately embroidered patch that reads "License to Burninate" in bold, fiery letters, surrounded by swirling flames and a majestic dragon in mid-flight.
+0.2777777910232544, 1.5868070012613387, A detailed close-up of a dragon rider's leather jacket, showcasing an intricately embroidered patch that reads "License to Burninate" in bold, fiery letters, surrounded by swirling flames and a majestic dragon in mid-flight.
+0.11764705926179886, -1.147066058725484, A superhero stands on a city rooftop at sunset, his cape emblazoned with the embroidered words "Cape City Protector" billowing in the wind, casting a determined silhouette against the skyline.
+0.0, 0.0, A rugged trail winds through a forest, leading to a wooden hiker’s trail marker that reads "Peak 2 Miles" under a canopy of tall pine trees, with a glimpse of a distant mountain range through the foliage.
+0.0, -0.7267960223488621, A vintage rock band tour bus parked at sunset, with a large, worn banner stretching across its side that boldly proclaims "World's Okayest Musicians", surrounded by a crowd of dedicated fans taking photos.
+0.0, -1.5335014538840825, Retro gaming cartridge label with bold, neon colors: "Pong 2 The Reckoning". The label features a vintage 8-bit aesthetic with pixelated graphics of two futuristic paddles and a glowing ball, set against a backdrop of 1980s arcade patterns.
+0.043478261679410934, -0.24226532002525286, A vintage rock band tour bus parked at sunset, with a large, worn banner stretching across its side that boldly proclaims "World's Okayest Musicians", surrounded by a crowd of dedicated fans taking photos.
+0.2847222089767456, 0.12122570142618007, A futuristic sci-fi setting featuring a large, glowing alien warning symbol on a metallic surface, prominently displaying the text "Humans Prohibited" in bold, futuristic font, with a dark, ominous atmosphere and subtle cybernetic details.
+0.1617647111415863, 0.9888500755021833, A superhero stands on a city rooftop at sunset, his cape emblazoned with the embroidered words "Cape City Protector" billowing in the wind, casting a determined silhouette against the skyline.
+0.3333333432674408, 0.9678580968618284, A close-up photograph of a plant tag in a garden center, clearly displaying the text "Sunflower Tall Variety", with a backdrop of vibrant sunflower plants towering behind it.
+0.26767677068710327, 1.5499850082219544, A young adult wearing a cozy hoodie with "Certified Nap Enthusiast" embroidered on the back, lounging on a plush sofa in a sunlit room, surrounded by fluffy pillows and a book resting on their chest, capturing a moment of serene relaxation.
+0.1133333370089531, 1.5170782681194193, A noir-style illustration of a detective's notebook open to a page with the entry "Suspect Last Seen at Midnight", under a dim streetlamp in a rain-soaked alley, with a shadowy figure in the distance.
+0.0, 0.0, A high-resolution screen in a modern digital museum displays "Exhibit A", featuring an interactive interface with elegant typography and a minimalist design, set against a sleek, black background.
+0.0, -0.7267960223488621, A vintage rock band tour bus parked at sunset, with a large, worn banner stretching across its side that boldly proclaims "World's Okayest Musicians", surrounded by a crowd of dedicated fans taking photos.
+0.16993464529514313, -0.416372039550661, A realistic photograph of a bus stop with a modern schedule sign prominently displaying "Route 66 Next Bus 5 PM" under a clear blue sky, with a few people waiting and a cityscape in the background.
+0.0, 0.0, A high-resolution screen in a modern digital museum displays "Exhibit A", featuring an interactive interface with elegant typography and a minimalist design, set against a sleek, black background.
+0.21739129722118378, 1.695857364722977, A vintage rock band tour bus parked at sunset, with a large, worn banner stretching across its side that boldly proclaims "World's Okayest Musicians", surrounded by a crowd of dedicated fans taking photos.
+0.511904776096344, 1.3261526292678412, A roadside warning sign, shaped as a yellow diamond, prominently displays "Sharp Turn Ahead" in bold black letters, set against a backdrop of winding road and lush greenery, under a clear blue sky.
+0.0, -1.616724352109252, A bustling urban street at dusk, with a large digital billboard cycling through various colorful ads, each transitioning smoothly into the next. The final ad displays a clear message: "Drive Safely", illuminated against a darkening sky. Pedestrians and vehicles are visible, adding life to the scene.
+0.0, -0.8960520588648991, A noir-style illustration of a detective's notebook open to a page with the entry "Suspect Last Seen at Midnight", under a dim streetlamp in a rain-soaked alley, with a shadowy figure in the distance.
+0.22727273404598236, 0.5807650725128992, A bustling urban street at dusk, with a large digital billboard cycling through various colorful ads, each transitioning smoothly into the next. The final ad displays a clear message: "Drive Safely", illuminated against a darkening sky. Pedestrians and vehicles are visible, adding life to the scene.
+0.0, 0.0, "Abstract No 5 2023" hangs in a modern art gallery, its vibrant colors and dynamic lines drawing the eye. The piece is displayed on a minimalist white wall, with soft, ambient lighting that highlights the textures and depth of the abstract composition.
+0.3571428656578064, 0.3189480865929208, A roadside warning sign, shaped as a yellow diamond, prominently displays "Sharp Turn Ahead" in bold black letters, set against a backdrop of winding road and lush greenery, under a clear blue sky.
+0.0, 0.0, A high-resolution screen in a modern digital museum displays "Exhibit A", featuring an interactive interface with elegant typography and a minimalist design, set against a sleek, black background.
+0.3222222328186035, 0.8872032622170867, A close-up photograph of a plant tag in a garden center, clearly displaying the text "Sunflower Tall Variety", with a backdrop of vibrant sunflower plants towering behind it.
+0.2469135820865631, 1.2468657383634099, A candid shot of a person sitting in a cozy living room, surrounded by playful dogs, with a reality TV confessional screen in the background displaying the title "I Came Here to Pet Dogs".
+0.16993464529514313, 0.5684313725851536, Retro gaming cartridge label with bold, neon colors: "Pong 2 The Reckoning". The label features a vintage 8-bit aesthetic with pixelated graphics of two futuristic paddles and a glowing ball, set against a backdrop of 1980s arcade patterns.
+0.0, 0.0, A rugged trail winds through a forest, leading to a wooden hiker’s trail marker that reads "Peak 2 Miles" under a canopy of tall pine trees, with a glimpse of a distant mountain range through the foliage.
+0.11764705926179886, -1.441288065128933, A realistic photograph of a bus stop with a modern schedule sign prominently displaying "Route 66 Next Bus 5 PM" under a clear blue sky, with a few people waiting and a cityscape in the background.
+0.11029411852359772, -0.1692662334050917, Retro gaming cartridge label with bold, neon colors: "Pong 2 The Reckoning". The label features a vintage 8-bit aesthetic with pixelated graphics of two futuristic paddles and a glowing ball, set against a backdrop of 1980s arcade patterns.
+0.1111111119389534, 0.12206204679893505, A detailed close-up of a dragon rider's leather jacket, showcasing an intricately embroidered patch that reads "License to Burninate" in bold, fiery letters, surrounded by swirling flames and a majestic dragon in mid-flight.
+0.0, -1.0787895376252186, A young adult wearing a cozy hoodie with "Certified Nap Enthusiast" embroidered on the back, lounging on a plush sofa in a sunlit room, surrounded by fluffy pillows and a book resting on their chest, capturing a moment of serene relaxation.
+0.23529411852359772, 0.8647728098688228, A realistic photograph of a bus stop with a modern schedule sign prominently displaying "Route 66 Next Bus 5 PM" under a clear blue sky, with a few people waiting and a cityscape in the background.
+0.0, -0.8960520588648991, A noir-style illustration of a detective's notebook open to a page with the entry "Suspect Last Seen at Midnight", under a dim streetlamp in a rain-soaked alley, with a shadowy figure in the distance.
+0.2152777761220932, -0.686945988244741, A futuristic sci-fi setting featuring a large, glowing alien warning symbol on a metallic surface, prominently displaying the text "Humans Prohibited" in bold, futuristic font, with a dark, ominous atmosphere and subtle cybernetic details.
+0.16883116960525513, 0.01569632215902324, A bustling urban street at dusk, with a large digital billboard cycling through various colorful ads, each transitioning smoothly into the next. The final ad displays a clear message: "Drive Safely", illuminated against a darkening sky. Pedestrians and vehicles are visible, adding life to the scene.
+0.1262626200914383, 0.16119838114840193, A young adult wearing a cozy hoodie with "Certified Nap Enthusiast" embroidered on the back, lounging on a plush sofa in a sunlit room, surrounded by fluffy pillows and a book resting on their chest, capturing a moment of serene relaxation.
+0.14444445073604584, -0.4032742002653513, A close-up photograph of a plant tag in a garden center, clearly displaying the text "Sunflower Tall Variety", with a backdrop of vibrant sunflower plants towering behind it.
+0.0, 0.0, "Abstract No 5 2023" hangs in a modern art gallery, its vibrant colors and dynamic lines drawing the eye. The piece is displayed on a minimalist white wall, with soft, ambient lighting that highlights the textures and depth of the abstract composition.
+0.054999999701976776, 0.27502584961037907, A noir-style illustration of a detective's notebook open to a page with the entry "Suspect Last Seen at Midnight", under a dim streetlamp in a rain-soaked alley, with a shadowy figure in the distance.
+0.1617647111415863, 0.9888500755021833, A superhero stands on a city rooftop at sunset, his cape emblazoned with the embroidered words "Cape City Protector" billowing in the wind, casting a determined silhouette against the skyline.
+0.27272728085517883, 1.0202629574373294, A bustling urban street at dusk, with a large digital billboard cycling through various colorful ads, each transitioning smoothly into the next. The final ad displays a clear message: "Drive Safely", illuminated against a darkening sky. Pedestrians and vehicles are visible, adding life to the scene.
+0.2777777910232544, -0.19756701376441896, A roadside warning sign, shaped as a yellow diamond, prominently displays "Sharp Turn Ahead" in bold black letters, set against a backdrop of winding road and lush greenery, under a clear blue sky.
+0.0, 0.0, A rugged trail winds through a forest, leading to a wooden hiker’s trail marker that reads "Peak 2 Miles" under a canopy of tall pine trees, with a glimpse of a distant mountain range through the foliage.
+0.15079365670681, -1.3793827008274582, A candid shot of a person sitting in a cozy living room, surrounded by playful dogs, with a reality TV confessional screen in the background displaying the title "I Came Here to Pet Dogs".
+0.0, -1.1820970158288224, An ancient vase fragment, partially buried in sandy soil, with faded text "Made in Atlantis" barely visible under a layer of moss and lichen, surrounded by fallen leaves and overgrown vines.
+0.0, -1.4517871588135638, A close-up photograph of a plant tag in a garden center, clearly displaying the text "Sunflower Tall Variety", with a backdrop of vibrant sunflower plants towering behind it.
+0.1428571492433548, 0.16887100226126037, An ancient vase fragment, partially buried in sandy soil, with faded text "Made in Atlantis" barely visible under a layer of moss and lichen, surrounded by fallen leaves and overgrown vines.
+0.04545454680919647, -0.6323938517451378, A young adult wearing a cozy hoodie with "Certified Nap Enthusiast" embroidered on the back, lounging on a plush sofa in a sunlit room, surrounded by fluffy pillows and a book resting on their chest, capturing a moment of serene relaxation.
+0.0714285746216774, -0.5066130067837811, An ancient vase fragment, partially buried in sandy soil, with faded text "Made in Atlantis" barely visible under a layer of moss and lichen, surrounded by fallen leaves and overgrown vines.
+0.2857142984867096, 1.5198390203513432, An ancient vase fragment, partially buried in sandy soil, with faded text "Made in Atlantis" barely visible under a layer of moss and lichen, surrounded by fallen leaves and overgrown vines.
+0.4097222089767456, 1.5759349856146423, A futuristic sci-fi setting featuring a large, glowing alien warning symbol on a metallic surface, prominently displaying the text "Humans Prohibited" in bold, futuristic font, with a dark, ominous atmosphere and subtle cybernetic details.
+0.0, 0.0, A high-resolution screen in a modern digital museum displays "Exhibit A", featuring an interactive interface with elegant typography and a minimalist design, set against a sleek, black background.
+0.0, 0.0, "Abstract No 5 2023" hangs in a modern art gallery, its vibrant colors and dynamic lines drawing the eye. The piece is displayed on a minimalist white wall, with soft, ambient lighting that highlights the textures and depth of the abstract composition.
+0.12418300658464432, -0.8306340922788825, A superhero stands on a city rooftop at sunset, his cape emblazoned with the embroidered words "Cape City Protector" billowing in the wind, casting a determined silhouette against the skyline.
+0.18518517911434174, -0.43971611570125585, A candid shot of a person sitting in a cozy living room, surrounded by playful dogs, with a reality TV confessional screen in the background displaying the title "I Came Here to Pet Dogs".
+0.24183006584644318, 0.9928872948107712, A realistic photograph of a bus stop with a modern schedule sign prominently displaying "Route 66 Next Bus 5 PM" under a clear blue sky, with a few people waiting and a cityscape in the background.
+0.0, -0.8544345240301369, A detailed close-up of a dragon rider's leather jacket, showcasing an intricately embroidered patch that reads "License to Burninate" in bold, fiery letters, surrounded by swirling flames and a majestic dragon in mid-flight.
+0.1875, -1.0102146987960814, A futuristic sci-fi setting featuring a large, glowing alien warning symbol on a metallic surface, prominently displaying the text "Humans Prohibited" in bold, futuristic font, with a dark, ominous atmosphere and subtle cybernetic details.
+0.2222222238779068, 0.5722330781653041, A candid shot of a person sitting in a cozy living room, surrounded by playful dogs, with a reality TV confessional screen in the background displaying the title "I Came Here to Pet Dogs".
+0.08571428805589676, -1.447533702096343, A roadside warning sign, shaped as a yellow diamond, prominently displays "Sharp Turn Ahead" in bold black letters, set against a backdrop of winding road and lush greenery, under a clear blue sky.
+0.0, 0.0, "Abstract No 5 2023" hangs in a modern art gallery, its vibrant colors and dynamic lines drawing the eye. The piece is displayed on a minimalist white wall, with soft, ambient lighting that highlights the textures and depth of the abstract composition.
+0.0, 0.0, A rugged trail winds through a forest, leading to a wooden hiker’s trail marker that reads "Peak 2 Miles" under a canopy of tall pine trees, with a glimpse of a distant mountain range through the foliage.
+0.1515151560306549, 0.753470864416191, A construction worker pauses on a scaffolding, their yellow helmet prominently displaying a sticker that reads "Safety First" in bold black letters, contrasting against the sunny, bustling construction site in the background.
+0.23076923191547394, 1.4993101918612235, A colorful child's drawing on a fridge, featuring crayon letters that spell "My Happy Family", surrounded by playful doodles and stick figures depicting a joyful family scene.
+0.35227271914482117, 0.9106189659762034, A close-up of a motivational wristband, intricately engraved with "Never Give Up", worn on a tanned arm, with a soft focus on a vibrant sunset in the background, emphasizing the message of perseverance.
+0.2777777910232544, 0.008768828910052194, In a bustling mall, a modern, illuminated sign reads "sounds", hanging above a busy electronics section where shoppers browse through headphones and speakers. The vibrant lights and dynamic atmosphere highlight the technological and social hub of the mall.
+0.375, 1.7309847973942227, A detailed fantasy map on ancient parchment, featuring a dense forest labeled "Elvenwild", surrounded by mystical symbols and intricate borders, with a soft, golden glow illuminating the edges.
+0.0, -0.5769949324647409, A detailed fantasy map on ancient parchment, featuring a dense forest labeled "Elvenwild", surrounded by mystical symbols and intricate borders, with a soft, golden glow illuminating the edges.
+0.3333333432674408, 0.7757125704337273, A close-up of a motivational wristband, intricately engraved with "Never Give Up", worn on a tanned arm, with a soft focus on a vibrant sunset in the background, emphasizing the message of perseverance.
+0.0, -0.8743226139306289, A vast, golden wheat field under a twilight sky, interrupted by a precise, intricate crop circle that spells out "Take Me To Your WiFi" in clear, geometric patterns. A mysterious, shimmering UFO hovers above, casting a soft, ethereal glow on the message.
+0.19230769574642181, 0.30132237218487795, A realistic photograph of graffiti spray-painted "Revolution Now" on a crumbling brick wall, with peeling paint and moss adding to the aged, urban decay aesthetic.
+0.11764705926179886, -0.6231658375821179, A beautifully decorated birthday cake with smooth, white icing and colorful accents. The icing elegantly reads "Happy 30th Birthday" in bold, cursive letters. The cake is surrounded by lit candles, creating a warm and festive atmosphere.
+0.0, -0.5756221241945569, A vibrant close-up of a festival wristband "Music Fest 2024" featuring neon colors and intricate designs, set against a blurred background of excited concert-goers and colorful lights, capturing the energetic atmosphere of the music festival.
+0.3333333432674408, 1.0981438580695941, A rustic, carved wooden sign stands at the edge of a forest path, pointing towards the "Trailhead 2 Miles" ahead, surrounded by tall trees and overgrown foliage, with a soft, dappled light filtering through the canopy.
+0.1975308656692505, 0.5472670133626433, A realistic photograph of a modern train station with a digital announcement board prominently displaying "Platform 5 Departing", surrounded by waiting passengers and the sleek silhouette of a train in the background.
+0.0, -1.3134418254749511, A beautifully decorated birthday cake with smooth, white icing and colorful accents. The icing elegantly reads "Happy 30th Birthday" in bold, cursive letters. The cake is surrounded by lit candles, creating a warm and festive atmosphere.
+0.11538461595773697, 0.11533154634579786, A colorful child's drawing on a fridge, featuring crayon letters that spell "My Happy Family", surrounded by playful doodles and stick figures depicting a joyful family scene.
+0.0, -0.9039671165546339, A realistic photograph of graffiti spray-painted "Revolution Now" on a crumbling brick wall, with peeling paint and moss adding to the aged, urban decay aesthetic.
+0.0, -0.5769949324647409, A detailed fantasy map on ancient parchment, featuring a dense forest labeled "Elvenwild", surrounded by mystical symbols and intricate borders, with a soft, golden glow illuminating the edges.
+0.1319444477558136, -0.6953377231418497, A bustling city street with a vintage store window displaying a retro price tag that reads "5 Dollar Sale Today", surrounded by colorful merchandise and illuminated by the warm glow of the setting sun.
+0.0, -0.5768239202083522, A solemn war memorial statue titled "For Those We Lost 1918", standing in a quiet, leafy park. The statue, crafted from weathered bronze, depicts a soldier holding a helmet, surrounded by wreaths and poppies, with a somber sky and a few people paying their respects in the background.
+0.38461539149284363, 1.5066118609243897, A realistic photograph of graffiti spray-painted "Revolution Now" on a crumbling brick wall, with peeling paint and moss adding to the aged, urban decay aesthetic.
+0.1568627506494522, -1.1341746780787885, A detailed diagram from a wizard school textbook, titled "Levitate Your Ex 101", showing various magical techniques and incantations for levitation, with illustrations of wands, floating objects, and a whimsical, illustrated ex-partner floating mid-air.
+0.0, -0.5756221241945569, A vibrant close-up of a festival wristband "Music Fest 2024" featuring neon colors and intricate designs, set against a blurred background of excited concert-goers and colorful lights, capturing the energetic atmosphere of the music festival.
+0.4285714328289032, -0.3254243445778753, A close-up photograph of a shiny dog collar tag, shaped like a realistic bone, with the text "Good Boy" engraved on it, set against a soft, blurred background of grass and flowers.
+0.19191919267177582, 1.2171451767473715, A construction worker pauses on a scaffolding, their yellow helmet prominently displaying a sticker that reads "Safety First" in bold black letters, contrasting against the sunny, bustling construction site in the background.
+0.2916666567325592, 1.1462371511490306, A vintage seed packet for "Heirloom Tomatoes", featuring a nostalgic illustration of a bountiful tomato plant with ripe, varied tomatoes, set against a rustic, weathered paper background.
+0.07692307978868484, 1.726866372583671, A vibrant close-up of a festival wristband "Music Fest 2024" featuring neon colors and intricate designs, set against a blurred background of excited concert-goers and colorful lights, capturing the energetic atmosphere of the music festival.
+0.3986928164958954, 1.0258268268766761, A beautifully decorated birthday cake with smooth, white icing and colorful accents. The icing elegantly reads "Happy 30th Birthday" in bold, cursive letters. The cake is surrounded by lit candles, creating a warm and festive atmosphere.
+0.0, -1.5986423262363552, A close-up of a motivational wristband, intricately engraved with "Never Give Up", worn on a tanned arm, with a soft focus on a vibrant sunset in the background, emphasizing the message of perseverance.
+0.0, -0.5756221241945569, A vibrant close-up of a festival wristband "Music Fest 2024" featuring neon colors and intricate designs, set against a blurred background of excited concert-goers and colorful lights, capturing the energetic atmosphere of the music festival.
+0.0, -0.9039671165546339, A realistic photograph of graffiti spray-painted "Revolution Now" on a crumbling brick wall, with peeling paint and moss adding to the aged, urban decay aesthetic.
+0.0, -0.5768239202083522, A solemn war memorial statue titled "For Those We Lost 1918", standing in a quiet, leafy park. The statue, crafted from weathered bronze, depicts a soldier holding a helmet, surrounded by wreaths and poppies, with a somber sky and a few people paying their respects in the background.
+0.07407407462596893, -1.5130321701528529, A realistic photograph of a modern train station with a digital announcement board prominently displaying "Platform 5 Departing", surrounded by waiting passengers and the sleek silhouette of a train in the background.
+0.0, -1.268647099169628, A colorful child's drawing on a fridge, featuring crayon letters that spell "My Happy Family", surrounded by playful doodles and stick figures depicting a joyful family scene.
+0.0, -0.9934055601461461, A vintage seed packet for "Heirloom Tomatoes", featuring a nostalgic illustration of a bountiful tomato plant with ripe, varied tomatoes, set against a rustic, weathered paper background.
+0.0, -0.9934055601461461, A vintage seed packet for "Heirloom Tomatoes", featuring a nostalgic illustration of a bountiful tomato plant with ripe, varied tomatoes, set against a rustic, weathered paper background.
+0.3185185194015503, 0.8003419815401808, A rustic, carved wooden sign stands at the edge of a forest path, pointing towards the "Trailhead 2 Miles" ahead, surrounded by tall trees and overgrown foliage, with a soft, dappled light filtering through the canopy.
+0.25, 0.8405739691432617, A vintage seed packet for "Heirloom Tomatoes", featuring a nostalgic illustration of a bountiful tomato plant with ripe, varied tomatoes, set against a rustic, weathered paper background.
+0.5102040767669678, 0.1839354101736168, A close-up photograph of a shiny dog collar tag, shaped like a realistic bone, with the text "Good Boy" engraved on it, set against a soft, blurred background of grass and flowers.
+0.0, -0.5768239202083522, A solemn war memorial statue titled "For Those We Lost 1918", standing in a quiet, leafy park. The statue, crafted from weathered bronze, depicts a soldier holding a helmet, surrounded by wreaths and poppies, with a somber sky and a few people paying their respects in the background.
+0.07692307978868484, -0.3459946390373936, A colorful child's drawing on a fridge, featuring crayon letters that spell "My Happy Family", surrounded by playful doodles and stick figures depicting a joyful family scene.
+0.0, -0.5769949324647409, A detailed fantasy map on ancient parchment, featuring a dense forest labeled "Elvenwild", surrounded by mystical symbols and intricate borders, with a soft, golden glow illuminating the edges.
+0.0, -1.3065494747888389, In a bustling mall, a modern, illuminated sign reads "sounds", hanging above a busy electronics section where shoppers browse through headphones and speakers. The vibrant lights and dynamic atmosphere highlight the technological and social hub of the mall.
+0.21212121844291687, -0.08768921017357544, A close-up of a motivational wristband, intricately engraved with "Never Give Up", worn on a tanned arm, with a soft focus on a vibrant sunset in the background, emphasizing the message of perseverance.
+0.1985294073820114, -0.49678738567400166, A detailed diagram from a wizard school textbook, titled "Levitate Your Ex 101", showing various magical techniques and incantations for levitation, with illustrations of wands, floating objects, and a whimsical, illustrated ex-partner floating mid-air.
+0.23456789553165436, 1.1653566440788496, A realistic photograph of a modern train station with a digital announcement board prominently displaying "Platform 5 Departing", surrounded by waiting passengers and the sleek silhouette of a train in the background.
+0.0, -0.8743226139306289, A vast, golden wheat field under a twilight sky, interrupted by a precise, intricate crop circle that spells out "Take Me To Your WiFi" in clear, geometric patterns. A mysterious, shimmering UFO hovers above, casting a soft, ethereal glow on the message.
+0.379084974527359, 0.9107808361803928, A beautifully decorated birthday cake with smooth, white icing and colorful accents. The icing elegantly reads "Happy 30th Birthday" in bold, cursive letters. The cake is surrounded by lit candles, creating a warm and festive atmosphere.
+0.3333333432674408, 1.565348682766085, A detailed diagram from a wizard school textbook, titled "Levitate Your Ex 101", showing various magical techniques and incantations for levitation, with illustrations of wands, floating objects, and a whimsical, illustrated ex-partner floating mid-air.
+0.3333333432674408, 1.5585751416846, A vast, golden wheat field under a twilight sky, interrupted by a precise, intricate crop circle that spells out "Take Me To Your WiFi" in clear, geometric patterns. A mysterious, shimmering UFO hovers above, casting a soft, ethereal glow on the message.
+0.125, -0.8344053423718685, A bustling city street with a vintage store window displaying a retro price tag that reads "5 Dollar Sale Today", surrounded by colorful merchandise and illuminated by the warm glow of the setting sun.
+0.2698412835597992, -1.3158461415825238, A close-up photograph of a shiny dog collar tag, shaped like a realistic bone, with the text "Good Boy" engraved on it, set against a soft, blurred background of grass and flowers.
+0.0, -0.9853080205817814, A construction worker pauses on a scaffolding, their yellow helmet prominently displaying a sticker that reads "Safety First" in bold black letters, contrasting against the sunny, bustling construction site in the background.
+0.1597222238779068, -0.13906754462836993, A bustling city street with a vintage store window displaying a retro price tag that reads "5 Dollar Sale Today", surrounded by colorful merchandise and illuminated by the warm glow of the setting sun.
+0.23529411852359772, 0.06561338098670502, A detailed diagram from a wizard school textbook, titled "Levitate Your Ex 101", showing various magical techniques and incantations for levitation, with illustrations of wands, floating objects, and a whimsical, illustrated ex-partner floating mid-air.
+0.23333333432674408, -0.2016821476620052, In a bustling mall, a modern, illuminated sign reads "sounds", hanging above a busy electronics section where shoppers browse through headphones and speakers. The vibrant lights and dynamic atmosphere highlight the technological and social hub of the mall.
+0.2530864179134369, 1.7304717606250566, A solemn war memorial statue titled "For Those We Lost 1918", standing in a quiet, leafy park. The statue, crafted from weathered bronze, depicts a soldier holding a helmet, surrounded by wreaths and poppies, with a somber sky and a few people paying their respects in the background.
+0.2518518567085266, -0.5397655642299911, A rustic, carved wooden sign stands at the edge of a forest path, pointing towards the "Trailhead 2 Miles" ahead, surrounded by tall trees and overgrown foliage, with a soft, dappled light filtering through the canopy.
+0.1458333283662796, 0.19007008617665774, A vast, golden wheat field under a twilight sky, interrupted by a precise, intricate crop circle that spells out "Take Me To Your WiFi" in clear, geometric patterns. A mysterious, shimmering UFO hovers above, casting a soft, ethereal glow on the message.
+0.0, -0.9853080205817814, A construction worker pauses on a scaffolding, their yellow helmet prominently displaying a sticker that reads "Safety First" in bold black letters, contrasting against the sunny, bustling construction site in the background.
+0.25, 1.668810610142088, A bustling city street with a vintage store window displaying a retro price tag that reads "5 Dollar Sale Today", surrounded by colorful merchandise and illuminated by the warm glow of the setting sun.
+0.5925925970077515, 1.4994627935407918, In a bustling mall, a modern, illuminated sign reads "sounds", hanging above a busy electronics section where shoppers browse through headphones and speakers. The vibrant lights and dynamic atmosphere highlight the technological and social hub of the mall.
+0.1527777761220932, -0.19959148728864, A realistic photograph of a modern train station with a digital announcement board prominently displaying "Platform 5 Departing", surrounded by waiting passengers and the sleek silhouette of a train in the background.
+0.7142857313156128, 1.4573350759867822, A close-up photograph of a shiny dog collar tag, shaped like a realistic bone, with the text "Good Boy" engraved on it, set against a soft, blurred background of grass and flowers.
+0.21111111342906952, -1.3587202753797838, A rustic, carved wooden sign stands at the edge of a forest path, pointing towards the "Trailhead 2 Miles" ahead, surrounded by tall trees and overgrown foliage, with a soft, dappled light filtering through the canopy.
+=== policy_loss at timestep 0 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 1 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 2 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 3 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 4 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 5 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 6 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 7 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 8 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 9 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 10 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 11 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 12 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 13 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 14 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 15 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 16 batch 0 ===
+-0.3591608480945102
+=== policy_loss at timestep 17 batch 0 ===
+-0.3591608480945102
 
-=== ratios at timestep 18 batch 1 ===
-0.9549332857131958, 0.9795910120010376, 0.9778486490249634, 0.9773949384689331, 0.9774172902107239, 0.977607250213623, 0.9804902076721191, 0.9851796627044678, 0.9845264554023743, 0.9833484888076782, 0.9819893836975098, 0.9881804585456848, 0.977351725101471, 0.9825413823127747, 0.9876756072044373, 0.9896700382232666, 0.9768006801605225, 0.9829362034797668, 0.9935975670814514, 0.9818669557571411, 0.981796145439148, 0.9882931113243103, 0.9793713092803955, 0.9888335466384888, 0.9808928966522217, 0.9874889850616455, 0.9751363396644592, 0.9887257814407349, 0.9869983196258545, 
-ratio: global_batch_size: 29, min: 0.9549332857131958, max: 0.9935975670814514, mean: 0.9820166785141518
-=== policy_loss at timestep 18 batch 1 ===
-0.3228394390826866
+=== log_probs at timestep 18 batch 0 ===
+1.0731545686721802, 1.0756534337997437, 1.0742870569229126, 1.0726358890533447, 1.0744316577911377, 1.0730561017990112, 1.0730561017990112, 1.0726358890533447, 1.0746572017669678, 1.07386314868927, 1.07174813747406, 1.0735220909118652, 1.0719468593597412, 1.0728763341903687, 1.0739315748214722, 1.0735782384872437, 1.0722705125808716, 1.0726821422576904, 1.0735692977905273, 1.0700223445892334, 1.0742915868759155, 1.0734425783157349, 1.073676347732544, 1.072029709815979, 1.0723179578781128, 1.0721909999847412, 1.0714985132217407, 1.0700042247772217, 1.0720478296279907, 1.0731583833694458, 1.072644591331482, 1.0738084316253662, 1.0747766494750977, 1.0737947225570679, 1.0718215703964233, 1.0716068744659424, 1.072583794593811, 1.0743244886398315, 1.0706926584243774, 1.0738029479980469, 1.0732688903808594, 1.07221519947052, 1.0722901821136475, 1.0746967792510986, 1.072288155555725, 1.0740596055984497, 1.0748928785324097, 1.0742897987365723, 1.072614312171936, 1.072892189025879, 1.0746395587921143, 1.0703235864639282, 1.0730860233306885, 1.074474573135376, 1.0716750621795654, 1.0739012956619263, 1.0736150741577148, 1.0749766826629639, 1.075461983680725, 1.0748944282531738, 
+log_prob: global_batch_size: 60, min: 1.0700042247772217, max: 1.0756534337997437, mean: 1.0731441617012023
+
+=== ratios at timestep 18 batch 0 ===
+1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 
+ratio: global_batch_size: 60, min: 1.0, max: 1.0, mean: 1.0
+=== policy_loss at timestep 18 batch 0 ===
+-0.3591608480945102
 
 === optimizer step performed ===
 
+=== policy_loss at timestep 0 batch 1 ===
+0.05357994256856689
+=== policy_loss at timestep 1 batch 1 ===
+0.053575997608874215
+=== policy_loss at timestep 2 batch 1 ===
+0.053566403720166564
+=== policy_loss at timestep 3 batch 1 ===
+0.05358490949270005

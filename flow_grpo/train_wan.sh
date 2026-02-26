@@ -1,6 +1,6 @@
 export PYTHONPATH="${PYTHONPATH}:/home/hao_lab/miniconda3/envs/flow_grpo/bin/python"
 export WANDB_API_KEY="84fb0deb6b40f77a0f1ceda0029efbe67164395f"
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 # Set to a directory where align_logs/flow_logs (and fv_logs when running FastVideo) will be written
 # Run flow_grpo first; it writes decoded videos to align_logs/fv_logs/decoded_videos/*.safetensors (per batch/rank).
 # Then run FastVideo with USE_ALIGN_DECODED_VIDEOS=1 to compute rewards/advantages on those videos.
@@ -10,11 +10,12 @@ export ACCELERATE_LOG_LEVEL="INFO"
 
 accelerate launch \
     --config_file scripts/accelerate_configs/multi_gpu.yaml \
+    --num_processes 8 \
     --main_process_port 29503 \
     scripts/train_wan2_1.py \
     --config config/grpo.py:general_ocr_wan2_1
 
-# accelerate launch \The
+# accelerate launch \
 #     --config_file scripts/accelerate_configs/multi_gpu.yaml \
 #     --num_processes 1 \
 #     --main_process_port 29503 \
